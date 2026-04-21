@@ -18,3 +18,4 @@ int video_renderer_available(int id);
 char *video_renderer_get_name(int id);
 int video_renderer_get_id(char *name);
 extern int selected_video_renderer;
+extern int skip_video_render;

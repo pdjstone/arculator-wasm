@@ -175,7 +175,6 @@ extern int fullborders,noborders;
 extern int dblscan;
 extern int stereoimages[8];
 extern int flyback;
-extern int skip_video_render;
 
 extern void initvid();
 extern void reinitvideo();

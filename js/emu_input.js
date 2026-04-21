@@ -395,9 +395,11 @@ class EmulatorInput
 }
 
 function getEmuInput() {
-    if (typeof(window.emuinput) == "undefined") {
+    if (typeof(self.emuinput) == "undefined") {
         console.log("Creating EmulatorInput instance")
-        window.emuinput = new EmulatorInput(BROWSER_KEY_MAP_UK);
+        self.emuinput = new EmulatorInput(BROWSER_KEY_MAP_UK);
     } 
-    return window.emuinput;
+    return self.emuinput;
 }
+
+Module['getEmuInput'] = getEmuInput;
