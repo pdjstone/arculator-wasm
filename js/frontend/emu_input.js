@@ -136,12 +136,12 @@ PrintScreen:
 // Mouse mode constants match those in arc.h
 // These track whether we are sending absolute mouse coordinates 
 // or relative mouse movement to the emulator
-const MOUSE_MODE_RELATIVE = 1
-const MOUSE_MODE_ABSOLUTE = 2
+const MOUSE_MODE_RELATIVE = 1;
+const MOUSE_MODE_ABSOLUTE = 2;
 
-const MOUSE_CAPTURE_AUTO = 1  // Use heuristics to decide when to capture and release the mouse
-const MOUSE_CAPTURE_FORCE = 2 // Always capture the mouse. Do not send mouse movement unless it is captured. 
-const MOUSE_CAPTURE_NEVER = 3 // Never capture the mouse, but still use heuristics to decide when to send absolute or relative mouse input
+const MOUSE_CAPTURE_AUTO = 1;  // Use heuristics to decide when to capture and release the mouse
+const MOUSE_CAPTURE_FORCE = 2; // Always capture the mouse. Do not send mouse movement unless it is captured. 
+const MOUSE_CAPTURE_NEVER = 3; // Never capture the mouse, but still use heuristics to decide when to send absolute or relative mouse input
 
 /**
  * Input handling for Arculator WASM. 
@@ -154,14 +154,10 @@ class EmulatorInput
             browserKeyMap = BROWSER_KEY_MAP_UK;
 
         this.browserKeyMap = browserKeyMap;
+        this.captureElementId = captureElementId;
 
-        this.captureElement = document.getElementById(captureElementId);
-        this.canvasPaddingX = (canvas.clientWidth - canvas.width)/2;
-        this.canvasPaddingY = (canvas.clientHeight - canvas.height)/2;
-        this.CANVAS_SNAP_BORDER = 50;
-    
         this.buttons = 0; // last state of mouse buttons
-
+        this.sab = null;
         this.mouseCaptureNeeded = 0;
         this.mouseCaptureMode = MOUSE_CAPTURE_AUTO;
         this.lastMouseDown = 0;
@@ -169,35 +165,57 @@ class EmulatorInput
         this.cursorY = 0;
 
         this.initBrowserKeys();
+        this.getCanvasMeasurements();
         this.installEventHandlers();
     }
 
+    setupSharedArrayBuffer(sab) {
+        this.HEAP32 = new Int32Array(sab);
+    }
+
     /**
-     * This is called from browser_init_keys
+     * Triggered by browser_init_keys in WASM worker
      */
-    setupArculatorKeyboard(keyStatePtr, keyLayoutPtr) {
+    setupArculatorKeyboard(sab, keyStatePtr, keyLayoutPtr) {
+        this.setupSharedArrayBuffer(sab);
+
         this.arcKeyStatePtr = keyStatePtr >> 2; // ptr to int so HEAP32
         this.arcKeyLayoutPtr = keyLayoutPtr >> 2; // ptr to int so HEAP32
 
         // Initialise Arculator buffers 
         let row, col;
         for (let keyId=1; keyId < NUM_ARC_KEYS; keyId++) {
-            HEAP32[this.arcKeyStatePtr+keyId] = 0;
+            this.HEAP32[this.arcKeyStatePtr + keyId] = 0;
             [row, col] = Object.values(ARC_KEY_LAYOUT_STANDARD)[keyId];
-            HEAP32[this.arcKeyLayoutPtr + (keyId-1) * 2] = row;
-            HEAP32[this.arcKeyLayoutPtr + (keyId-1) * 2 + 1] = col;
+            this.HEAP32[this.arcKeyLayoutPtr + (keyId-1) * 2] = row;
+            this.HEAP32[this.arcKeyLayoutPtr + (keyId-1) * 2 + 1] = col;
         }
+        
     }
 
     /**
-     * Called from browser_init_mouse
+     * Triggered by browser_init_mouse in WASM worker
      */
-    setupArculatorMouse(buttonsPtr, mxPtr, myPtr, mouseModePtr) {
+    setupArculatorMouse(sab, buttonsPtr, mxPtr, myPtr, mouseModePtr) {
+        this.setupSharedArrayBuffer(sab);
         this.buttonsPtr =  buttonsPtr >> 2;  // ptr to int so HEAP32
         this.mxPtr = mxPtr >> 2;
         this.myPtr = myPtr >> 2;
         this.mouseModePtr = mouseModePtr >> 2;
     }
+
+    /** 
+     * Triggered by notify_mouse_lock_required in browser_keys.js
+     */
+    setMouseCaptureNeeded(needed) {
+        this.mouseCaptureNeeded = needed;
+        if (!needed && document.pointerLockElement && !document.fullscreenElement) {
+            console.log('setMouseCaptureNeeded - releasing pointer lock');
+            document.exitPointerLock();
+        }   
+        this.updateDocClasses();
+    }
+
 
     initBrowserKeys() {
         // Map from KeyboardEvent.code to key ID
@@ -210,6 +228,18 @@ class EmulatorInput
         this.mouseRightKeyId = this.getKeyId('ArcMouseRight');
     }
 
+    getKeyId(arcKeyName) {
+        return Object.keys(ARC_KEY_LAYOUT_STANDARD).indexOf(arcKeyName);
+    }
+
+    getCanvasMeasurements() {
+        this.captureElement = document.getElementById(this.captureElementId);
+        let canvas = this.captureElement;
+        this.canvasPaddingX = (canvas.clientWidth - canvas.width)/2;
+        this.canvasPaddingY = (canvas.clientHeight - canvas.height)/2;
+        this.CANVAS_SNAP_BORDER = 50;
+    }
+
     installEventHandlers() {
         let obj = this;
        
@@ -220,7 +250,7 @@ class EmulatorInput
         // if they are released outside canvas
         document.addEventListener('mouseup', (evt) => obj.handleMouseButtonEvent(evt));
         document.addEventListener('blur', (evt) => obj.handleFocusLost(evt));
-        this.captureElement.addEventListener('mousemove', (evt) => obj.handleMouseMoveEvent(evt));
+        this.captureElement.addEventListener('pointerrawupdate', (evt) => obj.handleMouseMoveEvent(evt));
         this.captureElement.addEventListener('mouseleave', (evt) => obj.handleMouseLeaveEvent(evt));
     }
 
@@ -229,14 +259,14 @@ class EmulatorInput
         //console.log(`map key ${evt.code} => ${keyId}`);
         evt.preventDefault();
         if (keyId !== undefined)
-            HEAP32[this.arcKeyStatePtr + keyId] = 1;
+            this.HEAP32[this.arcKeyStatePtr + keyId] = 1;
     }
 
     handleKeyUpEvent(evt) {
         let keyId = this.keyIds[evt.code];
         evt.preventDefault();
         if (keyId !== undefined)    
-            HEAP32[this.arcKeyStatePtr + keyId] = 0;
+            this.HEAP32[this.arcKeyStatePtr + keyId] = 0;
     }
 
     handleMouseButtonEvent(evt) {
@@ -280,22 +310,18 @@ class EmulatorInput
         }
 
         if (this.buttonsPtr)
-            HEAP32[this.buttonsPtr] = buttons;
-        HEAP32[this.arcKeyStatePtr + this.mouseLeftKeyId] = buttons & 1;
-        HEAP32[this.arcKeyStatePtr + this.mouseMiddleKeyId] = buttons & 4;
-        HEAP32[this.arcKeyStatePtr + this.mouseRightKeyId] = buttons & 2;
-    }
-
-    getKeyId(arcKeyName) {
-        return Object.keys(ARC_KEY_LAYOUT_STANDARD).indexOf(arcKeyName);
+            this.HEAP32[this.buttonsPtr] = buttons;
+        this.HEAP32[this.arcKeyStatePtr + this.mouseLeftKeyId] = buttons & 1;
+        this.HEAP32[this.arcKeyStatePtr + this.mouseMiddleKeyId] = buttons & 4;
+        this.HEAP32[this.arcKeyStatePtr + this.mouseRightKeyId] = buttons & 2;
     }
 
     simulateKey(arcKeyName, delayMs = 20, durationMs = 40) {
         let keyId = this.getKeyId(arcKeyName);
         if (keyId == -1) return;
         setTimeout(() => {
-            HEAP32[this.arcKeyStatePtr + keyId] = 1;
-            setTimeout(() => HEAP32[this.arcKeyStatePtr + keyId] = 0, durationMs);
+            Atomics.store(this.HEAP32, this.arcKeyStatePtr + keyId, 1);
+            setTimeout(() => Atomics.store(this.HEAP32, this.arcKeyStatePtr + keyId, 0), durationMs);
         }, delayMs);
     }
 
@@ -305,15 +331,6 @@ class EmulatorInput
         this.updateDocClasses();
     }
 
-    // this is called by notify_mouse_lock_required in browser_keys.js
-    setMouseCaptureNeeded(needed) {
-        this.mouseCaptureNeeded = needed;
-        if (!needed && document.pointerLockElement && !document.fullscreenElement) {
-            console.log('setMouseCaptureNeeded - releasing pointer lock');
-            document.exitPointerLock();
-        }   
-        this.updateDocClasses();
-    }
 
     updateDocClasses() {
         document.body.classList.toggle('rel-mouse-needed', 
@@ -330,9 +347,10 @@ class EmulatorInput
                 (this.mouseCaptureMode == MOUSE_CAPTURE_AUTO || 
                  this.mouseCaptureMode == MOUSE_CAPTURE_NEVER) 
             )) {
-            HEAP32[this.mxPtr] += evt.movementX;
-            HEAP32[this.myPtr] += evt.movementY;
-            HEAP32[this.mouseModePtr] = MOUSE_MODE_RELATIVE;
+            Atomics.add(this.HEAP32, this.mxPtr, evt.movementX);
+            Atomics.add(this.HEAP32, this.myPtr, evt.movementY);
+            Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_RELATIVE);
+   
         } else if (!this.mouseCaptureNeeded && this.mouseCaptureMode != MOUSE_CAPTURE_FORCE) {
             let canvas = this.captureElement;
             // The canvas element has padding to allow the pointer 
@@ -380,26 +398,26 @@ class EmulatorInput
         // never receives the "key up" events, and keys will get stuck down
         // In particular, if you Alt-Tab away, the Alt key will get stuck until pressed again
         for (let keyId=1; keyId < NUM_ARC_KEYS; keyId++) {
-            HEAP32[this.arcKeyStatePtr+keyId] = 0;
+            Atomics.store(this.HEAP32, this.arcKeyStatePtr+keyId, 0);
         }
     }
 
     sendAbsMouse(x, y) {
-        HEAP32[this.mouseModePtr] = MOUSE_MODE_ABSOLUTE;
-        HEAP32[this.mxPtr] = x;
+        Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_ABSOLUTE);
+        Atomics.store(this.HEAP32, this.mxPtr, x);
         // invert Y mouse coord
-        HEAP32[this.myPtr] = y;
+        Atomics.store(this.HEAP32, this.myPtr, y);
         this.cursorX = x;
         this.cursorY = y;
     }
 }
 
-function getEmuInput() {
-    if (typeof(self.emuinput) == "undefined") {
+export function getEmuInput() {
+    if (typeof(window.emuinput) == "undefined") {
         console.log("Creating EmulatorInput instance")
-        self.emuinput = new EmulatorInput(BROWSER_KEY_MAP_UK);
+        window.emuinput = new EmulatorInput(BROWSER_KEY_MAP_UK);
     } 
-    return self.emuinput;
+    return window.emuinput;
 }
 
-Module['getEmuInput'] = getEmuInput;
+

@@ -8,14 +8,14 @@ CFLAGS         := -D_REENTRANT -Wall -Werror -DBUILD_TAG="${BUILD_TAG}"
 CFLAGS_WASM    := -sUSE_ZLIB=1
 LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
-EM_RUNTIME_API := ccall,FS,callMain
-LINKFLAGS_WASM := -sMODULARIZE -sEXPORT_ES6 -sEXPORT_NAME=ArculatorWasm -sINCOMING_MODULE_JS_API=${EM_MODULE_JS_API} -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM -sEXPORTED_RUNTIME_METHODS=${EM_RUNTIME_API} -lidbfs.js 
-LINKFLAGS_WASM += --pre-js js/emu_input.js --js-library js/browser_keys.js
+EM_RUNTIME_API := ccall,FS,callMain,HEAPU8,HEAPU32
+LINKFLAGS_WASM := -sMODULARIZE -sEXPORT_ES6 -sEXPORT_NAME=ArculatorWasm -sSHARED_MEMORY -sINCOMING_MODULE_JS_API=${EM_MODULE_JS_API} -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM -sEXPORTED_RUNTIME_METHODS=${EM_RUNTIME_API} -lidbfs.js 
+LINKFLAGS_WASM += --js-library js/browser_keys.js --js-library js/video.js
 DATA           := ddnoise
 ifdef DEBUG
   CFLAGS += -D_DEBUG -DDEBUG_LOG -O3
 #  --source-map-base not needed if .map is in the same dir as .wasm
-  LINKFLAGS_WASM += -gsource-map
+  LINKFLAGS_WASM += -gsource-map -g2
   BUILD_TAG +=  (DEBUG)
   $(info ❗BUILD_TAG="${BUILD_TAG}")
   DATA += roms/riscos311/ros311 roms/arcrom_ext cmos arc.cfg
@@ -38,7 +38,7 @@ OBJS := 82c711 82c711_fdc \
 	lc main mem memc podules printer \
 	riscdev_hdfc romload sound sound_emscripten \
 	st506 st506_akd52 timer vidc video_emscripten wd1770 \
-	wx-sdl2-joystick hostfs-unix podules-linux \
+	joystick_emscripten hostfs-unix podules-linux \
 	emscripten_main emscripten-console hostfs_emscripten
 OBJS_DOT_O  := $(addsuffix .o,${OBJS})
 OBJS_NATIVE := $(addprefix build/native/,${OBJS_DOT_O})
@@ -64,7 +64,7 @@ build/native/%.o: src/%.c
 wasm:	$(addprefix build/wasm/arculator.,js wasm)
 
 build/wasm/arculator.wasm: build/wasm/arculator.js
-build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js js/emu_input.js
+build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js
 	emcc ${LINKFLAGS} ${LINKFLAGS_WASM} ${OBJS_WASM} --embed-file ddnoise -o $@
 
 # build/wasm/arculator.data.js: build/wasm/arculator.data

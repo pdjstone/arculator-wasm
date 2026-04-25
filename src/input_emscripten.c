@@ -1,6 +1,5 @@
 #include "arc.h"
 #include "plat_input.h"
-#include "video_sdl2.h"
 
 static int mouse_buttons;
 static int mouse_x = 0, mouse_y = 0;

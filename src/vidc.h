@@ -46,8 +46,16 @@ typedef struct
 
 typedef RGB PALETTE[256];
 
+# ifdef __EMSCRIPTEN__
+// RGBA
+#define makecol(r, g, b)    ((r) | ((g) << 8) | ((b) << 16))
+#define makecol32(r, g, b)  ((r) | ((g) << 8) | ((b) << 16))
+
+#else
+// ARGB
 #define makecol(r, g, b)    ((b) | ((g) << 8) | ((r) << 16))
 #define makecol32(r, g, b)  ((b) | ((g) << 8) | ((r) << 16))
+#endif
 
 void clear(BITMAP *b);
 

@@ -12,4 +12,8 @@ void notify_mouse_lock_required(int needed);
 void keyboard_poll_host();
 extern int key[512];
 
+#ifndef __EMSCRIPTEN__
 #include "keyboard_sdl.h"
+#else
+#include "keyboard_emscripten.h"
+#endif

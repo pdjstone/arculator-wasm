@@ -42,7 +42,6 @@
 #include "timer.h"
 #include "vidc.h"
 #include "video.h"
-#include "video_sdl2.h"
 #include "wd1770.h"
 
 #include "hostfs.h"

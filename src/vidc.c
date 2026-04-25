@@ -54,7 +54,7 @@ static uint32_t vidcr[64];
 */
 #define VIDC_CR 0x38
 
-static int soundhz;
+//static int soundhz; compiler warning
 int soundper;
 
 int offsetx = 0, offsety = 0;
@@ -484,7 +484,7 @@ void writevidc(uint32_t v)
 	if ((v>>24)==0xBC) vidc.cye=(v&0xFFC000);
 	if ((v>>24)==0xC0)
 	{
-		soundhz = 250000 / ((v & 0xff) + 2);
+		//soundhz = 250000 / ((v & 0xff) + 2);
 		soundper = ((v & 0xff) + 2) << 10;
 		soundper = (soundper * 24000) / vidc.clock;
 

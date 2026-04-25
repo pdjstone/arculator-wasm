@@ -1,5 +1,3 @@
-/*Arculator 2.1 by Sarah Walker
-  Generic SDL-based main window handling*/
 #include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,56 +22,19 @@
 #define EMSCRIPTEN_KEEPALIVE
 #endif
 
-static int winsizex = 0, winsizey = 0;
-static int win_doresize = 0;
-static int win_renderer_reset = 0;
-
 #define MAX_TICKS_PER_FRAME 500
 
 static int fixed_fps = 0;
 
-void updatewindowsize(int x, int y)
-{
-        winsizex = x; winsizey = y;
-        win_doresize = 1;
-}
+
 
 static volatile int pause_main_thread = 0;
 
-//static SDL_mutex *main_thread_mutex = NULL;
 
-
-bool arcloop(double time, void *userData)
+void arcloop()
 {
-        /*Resize window to match screen mode*/
-        if (win_doresize && fast_forward_to_time_ms == 0)
-        {
-                //SDL_Rect rect;
-
-                win_doresize = 0;
-
-                //SDL_GetWindowSize(sdl_main_window, &rect.w, &rect.h);
-                // TODO reimplement for web canvas
-
-                /*if (rect.w != winsizex || rect.h != winsizey)
-                {
-                        rpclog("Resizing window to %d, %d\n", winsizex, winsizey);
-                        //SDL_GetWindowPosition(sdl_main_window, &rect.x, &rect.y);
-                        //SDL_SetWindowSize(sdl_main_window, winsizex, winsizey);
-                        //SDL_SetWindowPosition(sdl_main_window, rect.x, rect.y);
-                }*/
-        }
-
-        if (win_renderer_reset)
-        {
-                win_renderer_reset = 0;
-
-                if (!video_renderer_reinit(NULL))
-                        fatal("Video renderer init failed");
-        }
-
         static double last_timer_ticks = 0;
-        double current_timer_ticks = time;
+        double current_timer_ticks = emscripten_performance_now();
         double ticks_since_last = current_timer_ticks - last_timer_ticks;
         last_timer_ticks = current_timer_ticks;
 
@@ -86,21 +47,22 @@ bool arcloop(double time, void *userData)
                 if (fast_forward_to_time_ms != 0) {
                         rpclog("finished fast forward - re-enabling sound and video\n");
                         fast_forward_to_time_ms = 0;
-                        sound_enable(1);
+                        sound_enable(0);
                         skip_video_render = 0;
-                        win_doresize = 1;
                 }
                 run_ms = ticks_since_last < MAX_TICKS_PER_FRAME ? ticks_since_last : MAX_TICKS_PER_FRAME;
+
         }
 
-        //SDL_LockMutex(main_thread_mutex);
-
-        if (!pause_main_thread)
+        if (!pause_main_thread) {
+                int before = emscripten_performance_now();
                 arc_run(run_ms);
+                int emu_duration = emscripten_performance_now() - before;
+                if (emu_duration >= run_ms) {
+                        rpclog("arc_run ms=%d took %d !!\n", run_ms, emu_duration);
+                }
+        }
 
-        //SDL_UnlockMutex(main_thread_mutex);
-       
-        return true;
 }
 
 static int arc_main_thread()
@@ -114,19 +76,17 @@ static int arc_main_thread()
                 fatal("Video renderer init failed");
         }
         input_init();
-
+        sound_enable(0);
         // if fixed_fps is 0, emscripten will use requestAnimationFrame
-        emscripten_request_animation_frame_loop(arcloop, 0);
-      
+        emscripten_set_main_loop(arcloop, 60, 0);
+        //emscripten_set_timeout_loop(arcloop, 20, 0);
         return 0;
 }
 
 
 void EMSCRIPTEN_KEEPALIVE arc_pause_main_thread()
 {
-        //SDL_LockMutex(main_thread_mutex);
         pause_main_thread = 1;
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 long long EMSCRIPTEN_KEEPALIVE arc_get_emulation_ms()
@@ -136,56 +96,43 @@ long long EMSCRIPTEN_KEEPALIVE arc_get_emulation_ms()
 
 void EMSCRIPTEN_KEEPALIVE arc_resume_main_thread()
 {
-        //SDL_LockMutex(main_thread_mutex);
         pause_main_thread = 0;
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 
 void EMSCRIPTEN_KEEPALIVE arc_do_reset()
 {
-        //SDL_LockMutex(main_thread_mutex);
         arc_reset();
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_load_config_and_reset(char *config_name)
 {
-        //SDL_LockMutex(main_thread_mutex);
         arc_close();
         snprintf(machine_config_file, 256, "configs/%s.cfg", config_name);
         strncpy(machine_config_name, config_name, 255);
         rpclog("arc_load_config_and_reset: machine_config_name=%s machine_config_file=%s\n", machine_config_name, machine_config_file);
         loadconfig();
         arc_init();
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_disc_change(int drive, char *fn)
 {
         rpclog("arc_disc_change: drive=%i fn=%s\n", drive, fn);
 
-        //SDL_LockMutex(main_thread_mutex);
-
         disc_close(drive);
         strcpy(discname[drive], fn);
         disc_load(drive, discname[drive]);
         ioc_discchange(drive);
 
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_disc_eject(int drive)
 {
         rpclog("arc_disc_eject: drive=%i\n", drive);
-
-        //SDL_LockMutex(main_thread_mutex);
-
         ioc_discchange(drive);
         disc_close(drive);
         discname[drive][0] = 0;
 
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
@@ -198,46 +145,39 @@ void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
 
 void arc_stop_main_thread()
 {
-        //SDL_WaitThread(main_thread, NULL);
-        //SDL_DestroyMutex(main_thread_mutex);
-        //main_thread_mutex = NULL;
+
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_renderer_reset()
 {
-        win_renderer_reset = 1;
+        
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_set_display_mode(int new_display_mode)
 {
-        //SDL_LockMutex(main_thread_mutex);
 
         display_mode = new_display_mode;
         clearbitmap();
         setredrawall();
 
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_set_dblscan(int new_dblscan)
 {
-        //SDL_LockMutex(main_thread_mutex);
 
         dblscan = new_dblscan;
         clearbitmap();
 
-        //SDL_UnlockMutex(main_thread_mutex);
 }
 
 
 void EMSCRIPTEN_KEEPALIVE arc_set_sound_filter(int filter)
 {
-        //SDL_LockMutex(main_thread_mutex);
+
         if (filter >=0 && filter <= 2) {
                 sound_filter = filter;
                 sound_update_filter();
         }
-        //SDL_UnlockMutex(main_thread_mutex);
 
 }
 
@@ -260,7 +200,6 @@ int EMSCRIPTEN_KEEPALIVE main(int argc, char** argv)
                 strncpy(machine_config_name, argv[2], 255);
                 rpclog("machine_config_name=%s machine_config_file=%s\n", machine_config_name, machine_config_file);
         }
-        //main_thread_mutex = SDL_CreateMutex();
         arc_main_thread();
 }
 

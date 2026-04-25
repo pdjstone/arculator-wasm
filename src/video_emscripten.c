@@ -9,9 +9,9 @@ int selected_video_renderer;
 int skip_video_render;
 
 
-int video_renderer_init(void *main_window) {
-    return 1;
-}
+extern void emscripten_render_update(void* src, int src_x, int src_y, int w, int h);
+extern void emscripten_render_present(int src_x, int src_y, int src_w, int src_h, int dblscan);
+extern void emscripten_update_window_size(int w, int h);
 
 int video_renderer_reinit(void *main_window) {
     return 1;
@@ -21,15 +21,25 @@ void video_renderer_close() {
 
 }
 
-void video_renderer_update(BITMAP *src, int x1, int y1, int x2, int y2, int dest_x, int dest_y) {
+void updatewindowsize(int w, int h) {
+    if (skip_video_render || w < 0 || h < 0)
+        return;
+    emscripten_update_window_size(w, h);
+}
 
+void video_renderer_update(BITMAP *src, int src_x, int src_y, int dest_x, int dest_y, int w, int h) {
+    if (skip_video_render || w < 0 || h < 0)
+        return;
+
+    // dest_x and dest_y are always 0
+    emscripten_render_update(src->dat, src_x, src_y, w, h);
 }
 
 void video_renderer_present(int src_x, int src_y, int src_w, int src_h, int dblscan) {
-
+    if (skip_video_render || src_w < 0 || src_h < 0)
+        return;
+    emscripten_render_present(src_x, src_y, src_w, src_h, dblscan);
 }
-
-
 
 int video_renderer_available(int id) {
     return (id == RENDERER_OPENGL || id == RENDERER_AUTO);

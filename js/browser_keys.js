@@ -3,7 +3,11 @@
  */
 function browser_init_keys(keystate, keylayout) {
     console.log('browser_init_keys', keystate, keylayout);
-    //getEmuInput().setupArculatorKeyboard(keystate, keylayout);
+    self.postMessage({
+        type: 'EmulatorInput',
+        func: 'setupArculatorKeyboard',
+        params: [HEAPU8.buffer, keystate, keylayout]
+    });
 }
 
 /**
@@ -11,12 +15,20 @@ function browser_init_keys(keystate, keylayout) {
  */
 function browser_init_mouse(mxPtr, myPtr, buttonsPtr, mouseModePtr) { 
     console.log('browser_init_mouse', mxPtr, myPtr, mouseModePtr);
-    //getEmuInput().setupArculatorMouse(buttonsPtr, mxPtr, myPtr, mouseModePtr);
+    self.postMessage({
+        type: 'EmulatorInput',
+        func: 'setupArculatorMouse',
+        params: [HEAPU8.buffer, buttonsPtr, mxPtr, myPtr, mouseModePtr]
+    });
 }
 
 function notify_mouse_lock_required(needed) {
     console.log('notify_mouse_lock_required', needed);
-    //getEmuInput().setMouseCaptureNeeded(needed);
+    self.postMessage({
+        type: 'EmulatorInput',
+        func: 'setMouseCaptureNeeded',
+        params: [needed]
+    });
 }
 
 mergeInto(LibraryManager.library, {

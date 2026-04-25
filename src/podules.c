@@ -46,7 +46,7 @@ static const podule_header_t *(*internal_podules[])(const podule_callbacks_t *ca
 };
 
 #define NR_INTERNAL_PODULES (sizeof(internal_podules) / sizeof(internal_podules[0]))
-static int nr_podules = 0;
+//static int nr_podules = 0;
 
 /*Podules -
   0 is reserved for extension ROMs
@@ -96,7 +96,7 @@ void podule_add(const podule_header_t *header)
 		last_entry = last_entry->next;
 	}
 
-	nr_podules++;
+	//nr_podules++;
 }
 
 void podule_build_list(void)

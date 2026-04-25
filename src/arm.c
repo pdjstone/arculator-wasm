@@ -30,7 +30,7 @@ static uint32_t arm3_cache_tag[4][64];
 static int arm3_slot = 1;
 #define TAG_INVALID -1
 
-static int cyc_s, cyc_n;
+//static int cyc_s, cyc_n;
 
 #define cyc_i (1ull << 32)
 
@@ -1018,8 +1018,6 @@ static inline uint32_t shift_mem(uint32_t opcode)
 					pccache=templ2; \
 					pccache2 = (uint32_t *)(mempoint[templ2]); \
 					opcode = pccache2[addr >> 2]; \
-					cyc_s = mem_speed[templ2 & 0x3fff][0];  \
-					cyc_n = mem_speed[templ2 & 0x3fff][1];  \
 				} \
 				else \
 				{ \
@@ -2653,8 +2651,8 @@ void execarm(int cycles_to_execute)
 				pccache = templ2;
 				pccache2 = (uint32_t *)mempoint[templ2];
 				opcode3 = pccache2[PC >> 2];
-				cyc_s = mem_speed[templ2 & 0x3fff][0];
-				cyc_n = mem_speed[templ2 & 0x3fff][1];
+				//cyc_s = mem_speed[templ2 & 0x3fff][0];
+				//cyc_n = mem_speed[templ2 & 0x3fff][1];
 			}
 			else
 			{
