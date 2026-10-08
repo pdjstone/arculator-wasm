@@ -30,6 +30,7 @@ static uint64_t sample_16_time; /*Time for 16 bytes (1 fetch) to be consumed by 
 
 static int sound_first_poll = 1;
 static int sound_write_ptr;
+static uint32_t sound_block_counter; /*50ms blocks since sound_init(), used to time audio dumps deterministically*/
 
 static int sound_clock_mhz;
 int sound_filter;
@@ -141,9 +142,157 @@ static void update_sound(int end_sample)
 
 }
 
+/*Audio dumping. Records the stereo output buffers that are handed to the
+  platform audio device into a PCM WAV file in the Emscripten virtual
+  filesystem, so that audio from different audio backends can be compared.
+  This is hooked in at the sound_givebuffer() call site so that the capture
+  point is identical regardless of which platform backend is in use.*/
+#define AUDIO_DUMP_PATH     "/audio_dump.wav"
+#define AUDIO_DUMP_RATE     48000
+#define AUDIO_DUMP_CHANNELS 2
+#define AUDIO_DUMP_BITS     16
+#define AUDIO_DUMP_FRAMES   2400 /*stereo frames per sound_givebuffer() call*/
+
+static int audio_dump_state = AUDIO_DUMP_OFF;
+static FILE *audio_dump_file;
+static uint32_t audio_dump_start_block;
+static uint32_t audio_dump_frames, audio_dump_target_frames;
+
+static void audio_dump_put32(uint8_t *p, uint32_t v)
+{
+	p[0] = v & 0xff;
+	p[1] = (v >> 8) & 0xff;
+	p[2] = (v >> 16) & 0xff;
+	p[3] = (v >> 24) & 0xff;
+}
+
+static void audio_dump_put16(uint8_t *p, uint16_t v)
+{
+	p[0] = v & 0xff;
+	p[1] = (v >> 8) & 0xff;
+}
+
+static void audio_dump_write_header(FILE *f, uint32_t data_bytes)
+{
+	uint8_t hdr[44];
+	uint32_t byte_rate = AUDIO_DUMP_RATE * AUDIO_DUMP_CHANNELS * (AUDIO_DUMP_BITS / 8);
+	uint16_t block_align = AUDIO_DUMP_CHANNELS * (AUDIO_DUMP_BITS / 8);
+
+	memcpy(hdr, "RIFF", 4);
+	audio_dump_put32(hdr + 4, 36 + data_bytes);
+	memcpy(hdr + 8, "WAVE", 4);
+	memcpy(hdr + 12, "fmt ", 4);
+	audio_dump_put32(hdr + 16, 16); /*fmt chunk size*/
+	audio_dump_put16(hdr + 20, 1);  /*PCM*/
+	audio_dump_put16(hdr + 22, AUDIO_DUMP_CHANNELS);
+	audio_dump_put32(hdr + 24, AUDIO_DUMP_RATE);
+	audio_dump_put32(hdr + 28, byte_rate);
+	audio_dump_put16(hdr + 32, block_align);
+	audio_dump_put16(hdr + 34, AUDIO_DUMP_BITS);
+	memcpy(hdr + 36, "data", 4);
+	audio_dump_put32(hdr + 40, data_bytes);
+
+	fwrite(hdr, 1, sizeof(hdr), f);
+}
+
+void sound_dump_audio(double delay, double duration)
+{
+	if (audio_dump_state == AUDIO_DUMP_WAITING || audio_dump_state == AUDIO_DUMP_RECORDING)
+	{
+		rpclog("sound_dump_audio: a dump is already in progress\n");
+		return;
+	}
+	if (!(duration > 0.0))
+	{
+		rpclog("sound_dump_audio: duration must be greater than zero\n");
+		audio_dump_state = AUDIO_DUMP_OFF;
+		return;
+	}
+
+	audio_dump_file = fopen(AUDIO_DUMP_PATH, "wb");
+	if (!audio_dump_file)
+	{
+		rpclog("sound_dump_audio: unable to open %s\n", AUDIO_DUMP_PATH);
+		audio_dump_state = AUDIO_DUMP_OFF;
+		return;
+	}
+
+	audio_dump_frames = 0;
+	audio_dump_target_frames = (uint32_t)(duration * AUDIO_DUMP_RATE);
+	/*Time the dump against the 50ms block counter rather than
+	  total_emulation_millis: that only updates when arc_run() returns, so
+	  keying on it can shift the start position by up to one arc_run chunk
+	  between runs*/
+	if (delay < 0.0)
+		delay = 0.0;
+	audio_dump_start_block = sound_block_counter + (uint32_t)(delay * 20.0);
+
+	/*Placeholder header, rewritten with the final sizes once recording
+	  finishes so that the file is a valid WAV from the outset*/
+	audio_dump_write_header(audio_dump_file, 0);
+	fflush(audio_dump_file);
+
+	audio_dump_state = AUDIO_DUMP_WAITING;
+
+	rpclog("sound_dump_audio: dumping %.3fs starting at %.3fs to %s\n",
+	       duration, delay, AUDIO_DUMP_PATH);
+}
+
+static void audio_dump_finish(void)
+{
+	uint32_t data_bytes = audio_dump_frames * AUDIO_DUMP_CHANNELS * (AUDIO_DUMP_BITS / 8);
+
+	if (fseek(audio_dump_file, 0, SEEK_SET) == 0)
+		audio_dump_write_header(audio_dump_file, data_bytes);
+	fclose(audio_dump_file);
+	audio_dump_file = NULL;
+	audio_dump_state = AUDIO_DUMP_FINISHED;
+
+	rpclog("sound_dump_audio: wrote %u frames (%u bytes) to %s\n",
+	       audio_dump_frames, data_bytes, AUDIO_DUMP_PATH);
+}
+
+int sound_get_dump_state(void)
+{
+	return audio_dump_state;
+}
+
+/*Called once per sound_givebuffer() with the buffer about to be handed to the
+  platform audio device*/
+static void audio_dump_poll(const int16_t *buf, int frames)
+{
+	uint32_t remaining;
+
+	if (audio_dump_state == AUDIO_DUMP_WAITING)
+	{
+		if (sound_block_counter < audio_dump_start_block)
+			return;
+		audio_dump_state = AUDIO_DUMP_RECORDING;
+	}
+
+	if (audio_dump_state != AUDIO_DUMP_RECORDING)
+		return;
+
+	/*Never write past the requested duration, so that dumps of the same
+	  length can be compared between builds*/
+	remaining = audio_dump_target_frames - audio_dump_frames;
+	if ((uint32_t)frames > remaining)
+		frames = (int)remaining;
+
+	if (frames > 0)
+	{
+		fwrite(buf, sizeof(int16_t) * AUDIO_DUMP_CHANNELS, frames, audio_dump_file);
+		audio_dump_frames += frames;
+	}
+
+	if (audio_dump_frames >= audio_dump_target_frames)
+		audio_dump_finish();
+}
+
 static void pollsound_100ms(void *p)
 {
 	timer_advance_u64(&sound_timer_100ms, 50 * 1000 * TIMER_USEC);
+	sound_block_counter++;
 
 	update_sound(2400);
 	if (soundena && sound_first_poll)
@@ -151,7 +300,10 @@ static void pollsound_100ms(void *p)
 
 	sound_write_ptr = 0;
 	if (soundena)
+	{
+		audio_dump_poll(sound_out_buffer, AUDIO_DUMP_FRAMES);
 		sound_givebuffer(sound_out_buffer);
+	}
 //        rpclog("          samp_fp=%i samp_wp=%i samp_rp=%i %08x %08x\n", samp_fp, samp_wp, (samp_rp >> 15) * 2, samp_rp, SAMP_INC);
 }
 
@@ -289,6 +441,7 @@ void sound_init(void)
 	timer_add(&sound_timer, pollsound, NULL, 1);
 	timer_add(&sound_timer_100ms, pollsound_100ms, NULL, 1);
 	sound_first_poll = 1;
+	sound_block_counter = 0;
 	SAMP_INC = ((int)((1000000.0 / 48000.0) * 16384.0));
 
 	samp_rp = 0xff000000;

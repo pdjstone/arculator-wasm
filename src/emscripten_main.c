@@ -193,6 +193,21 @@ void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
         rpclog("arc_fast_forward: %d\n", time_ms);
 }
 
+/*Dump stereo audio to a PCM WAV file in the Emscripten filesystem, starting
+  after 'delay' seconds of emulation and lasting 'duration' seconds*/
+void EMSCRIPTEN_KEEPALIVE arc_dump_audio(double delay, double duration)
+{
+        rpclog("arc_dump_audio: delay=%f duration=%f\n", delay, duration);
+        sound_dump_audio(delay, duration);
+}
+
+/*Current audio dump state: one of AUDIO_DUMP_OFF/WAITING/RECORDING/FINISHED
+  from sound.h*/
+int EMSCRIPTEN_KEEPALIVE arc_get_audio_dump_state()
+{
+        return sound_get_dump_state();
+}
+
 void arc_stop_main_thread()
 {
         //SDL_WaitThread(main_thread, NULL);
