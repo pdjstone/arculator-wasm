@@ -11,6 +11,7 @@
 #include "disc.h"
 #include "ioc.h"
 #include "sound.h"
+#include "sound_ring.h"
 #include "plat_sound.h"
 #include "plat_input.h"
 #include "plat_video.h"
@@ -25,6 +26,10 @@
 #define MAX_TICKS_PER_FRAME 500
 
 static int fixed_fps = 0;
+
+/*Whether the user wants sound on. sound_enable() is also used to switch sound
+  off during a fast-forward, which mustn't override this when it finishes*/
+static int user_sound_enabled = 1;
 
 
 
@@ -47,17 +52,19 @@ void arcloop()
                 if (fast_forward_to_time_ms != 0) {
                         rpclog("finished fast forward - re-enabling sound and video\n");
                         fast_forward_to_time_ms = 0;
-                        sound_enable(0);
+                        sound_enable(user_sound_enabled);
                         skip_video_render = 0;
                 }
                 run_ms = ticks_since_last < MAX_TICKS_PER_FRAME ? ticks_since_last : MAX_TICKS_PER_FRAME;
-
+                /*While the audio device is playing it is the master clock*/
+                run_ms = sound_dev_pace_ms(run_ms);
         }
 
         if (!pause_main_thread) {
                 int before = emscripten_performance_now();
                 arc_run(run_ms);
                 int emu_duration = emscripten_performance_now() - before;
+                sound_dev_note_loop(ticks_since_last, emscripten_performance_now() - current_timer_ticks);
                 if (emu_duration >= run_ms) {
                         rpclog("arc_run ms=%d took %d !!\n", run_ms, emu_duration);
                 }
@@ -76,7 +83,6 @@ static int arc_main_thread()
                 fatal("Video renderer init failed");
         }
         input_init();
-        sound_enable(0);
         // if fixed_fps is 0, emscripten will use requestAnimationFrame
         emscripten_set_main_loop(arcloop, 60, 0);
         //emscripten_set_timeout_loop(arcloop, 20, 0);
@@ -143,6 +149,21 @@ void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
         rpclog("arc_fast_forward: %d\n", time_ms);
 }
 
+/*Dump stereo audio to a PCM WAV file in the Emscripten filesystem, starting
+  after 'delay' seconds of emulation and lasting 'duration' seconds*/
+void EMSCRIPTEN_KEEPALIVE arc_dump_audio(double delay, double duration)
+{
+        rpclog("arc_dump_audio: delay=%f duration=%f\n", delay, duration);
+        sound_dump_audio(delay, duration);
+}
+
+/*Current audio dump state: one of AUDIO_DUMP_OFF/WAITING/RECORDING/FINISHED
+  from sound.h*/
+int EMSCRIPTEN_KEEPALIVE arc_get_audio_dump_state()
+{
+        return sound_get_dump_state();
+}
+
 void arc_stop_main_thread()
 {
 
@@ -183,7 +204,10 @@ void EMSCRIPTEN_KEEPALIVE arc_set_sound_filter(int filter)
 
 void EMSCRIPTEN_KEEPALIVE arc_enable_sound(int enable) 
 {
-        sound_enable(enable);
+        user_sound_enabled = enable;
+        /*Sound stays off until a fast-forward has finished*/
+        if (fast_forward_to_time_ms == 0 && enable != soundena)
+                sound_enable(enable);
 }
 
 int EMSCRIPTEN_KEEPALIVE main(int argc, char** argv)

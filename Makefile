@@ -10,7 +10,7 @@ LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
 EM_RUNTIME_API := ccall,FS,callMain,HEAPU8,HEAPU32
 LINKFLAGS_WASM := -sMODULARIZE -sEXPORT_ES6 -sEXPORT_NAME=ArculatorWasm -sSHARED_MEMORY -sINCOMING_MODULE_JS_API=${EM_MODULE_JS_API} -sALLOW_MEMORY_GROWTH=1 -sFORCE_FILESYSTEM -sEXPORTED_RUNTIME_METHODS=${EM_RUNTIME_API} -lidbfs.js 
-LINKFLAGS_WASM += --js-library js/browser_keys.js --js-library js/video.js
+LINKFLAGS_WASM += --js-library js/browser_keys.js --js-library js/video.js --js-library js/audio.js
 DATA           := ddnoise
 ifdef DEBUG
   CFLAGS += -D_DEBUG -DDEBUG_LOG -O3
@@ -64,7 +64,7 @@ build/native/%.o: src/%.c
 wasm:	$(addprefix build/wasm/arculator.,js wasm)
 
 build/wasm/arculator.wasm: build/wasm/arculator.js
-build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js
+build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js js/video.js js/audio.js
 	emcc ${LINKFLAGS} ${LINKFLAGS_WASM} ${OBJS_WASM} --embed-file ddnoise -o $@
 
 # build/wasm/arculator.data.js: build/wasm/arculator.data
