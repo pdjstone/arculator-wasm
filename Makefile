@@ -5,7 +5,7 @@ BUILD_TAG := $(shell echo `git rev-parse --short HEAD`-`[[ -n $$(git status -s) 
 
 CC             := gcc
 CFLAGS         := -D_REENTRANT -Wall -Werror -DBUILD_TAG="${BUILD_TAG}"
-CFLAGS_WASM    := -sUSE_ZLIB=1
+CFLAGS_WASM    := -sUSE_ZLIB=1 -DARC_AUDIO_WORKLET
 LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
 EM_RUNTIME_API := ccall,FS,callMain,HEAPU8,HEAPU32

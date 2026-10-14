@@ -28,7 +28,8 @@
 static int fixed_fps = 0;
 
 /*Whether the user wants sound on. sound_enable() is also used to switch sound
-  off during a fast-forward, which mustn't override this when it finishes*/
+  off during a fast-forward, which mustn't override this when it finishes.
+  Starts off as the config file's sound_enable, which loadconfig() applies*/
 static int user_sound_enabled = 1;
 
 
@@ -64,6 +65,7 @@ void arcloop()
                 int before = emscripten_performance_now();
                 arc_run(run_ms);
                 int emu_duration = emscripten_performance_now() - before;
+                sound_stream_flush();
                 sound_dev_note_loop(ticks_since_last, emscripten_performance_now() - current_timer_ticks);
                 if (emu_duration >= run_ms) {
                         rpclog("arc_run ms=%d took %d !!\n", run_ms, emu_duration);
@@ -77,6 +79,7 @@ static int arc_main_thread()
         rpclog("Arculator startup\n");
 
         arc_init();
+        user_sound_enabled = soundena;
 
         if (!video_renderer_init(NULL))
         {
@@ -119,6 +122,7 @@ void EMSCRIPTEN_KEEPALIVE arc_load_config_and_reset(char *config_name)
         rpclog("arc_load_config_and_reset: machine_config_name=%s machine_config_file=%s\n", machine_config_name, machine_config_file);
         loadconfig();
         arc_init();
+        user_sound_enabled = soundena;
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_disc_change(int drive, char *fn)

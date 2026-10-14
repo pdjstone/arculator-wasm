@@ -14,7 +14,6 @@ enum
 	AUDIO_DUMP_FINISHED
 };
 int sound_get_dump_state(void);
-int sound_get_block_progress_ms(void);
 
 
 extern int sound_gain;
