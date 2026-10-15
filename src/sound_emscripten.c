@@ -16,22 +16,23 @@ extern void browser_init_audio(int ctrl_ptr, int reset_ptr, int event_ptr, int r
 extern void browser_publish_audio(int ctrl_ptr, int index, int value);
 extern void browser_publish_audio3(int ctrl_ptr, int index1, int value1, int index2, int value2, int index3, int value3);
 
-#define DEFAULT_TARGET_FILL_FRAMES 7200 /*150ms, used until the worklet reports its own*/
+#define DEFAULT_TARGET_FILL_FRAMES 4800 /*100ms, used until the worklet reports its own*/
 #define PACE_MAX_ADJUST_MS 4
 #define PACE_STALL_MS 250 /*If the worklet makes no progress for this long, stop pacing against it*/
-#define PACE_MAX_OVER_TARGET_MS 80 /*Never queue more than this beyond the target. Stays under the worklet's MAX_FILL (100ms over), where it starts throwing audio away*/
+#define PACE_TRIM_MARGIN_MS 20 /*How far below the worklet's trim level to stop when catching up*/
 
 static sound_ring_t sound_ring;
 static volatile int32_t *const ctrl = sound_ring.ctrl;
 #define CTRL_PTR ((int)(intptr_t)sound_ring.ctrl)
 
 /*Our copies of the counters we own*/
-static uint32_t rec_write_count, event_write_count, dd_write_count;
+static uint32_t rec_write_count, event_write_count, dd_write_count; /*dd_write_count is in blocks*/
 static uint32_t ticks_written;
 static uint32_t resets_sent;
-/*The first record and event of the stream that the worklet is following, or
-  will be once it sees our latest reset. Those before them are never read*/
-static uint32_t rec_read_floor, event_read_floor;
+/*The first record, event and disc noise block of the stream that the worklet
+  is following, or will be once it sees our latest reset. Those before them
+  are never read*/
+static uint32_t rec_read_floor, event_read_floor, dd_read_floor;
 static int ring_initialised;
 
 /*What the stream currently looks like, for pacing*/
@@ -124,6 +125,7 @@ void sound_dev_reset(int samp_inc, int clock_hz, const double *a_coef, const dou
 	/*Everything before this is thrown away*/
 	rec_read_floor = rec_write_count;
 	event_read_floor = event_write_count;
+	dd_read_floor = dd_write_count;
 	cur_clock_hz = clock_hz;
 	resets_sent++;
 
@@ -240,6 +242,11 @@ int sound_dev_record(int period, const int16_t *samples)
 	return 1;
 }
 
+uint32_t sound_dev_ticks_written(void)
+{
+	return ticks_written;
+}
+
 void sound_dev_flush(uint32_t frame_wm)
 {
 	/*The worklet reads these in the opposite order to this*/
@@ -248,29 +255,25 @@ void sound_dev_flush(uint32_t frame_wm)
 	                       SOUND_CTRL_FRAME_WM, (int32_t)frame_wm);
 }
 
-/*Called with 100ms of mono 44.1kHz disc noise*/
+/*Called with 100ms of mono 44.1kHz disc noise, at the start of the 100ms it
+  covers. It's tagged with the tick it starts at, so the worklet can play it in
+  step with the main audio. Only sent while there's a stream to tie it to*/
 void sound_givebufferdd(int16_t *buf)
 {
-	uint32_t read_count, first, samples_to_end;
+	sound_dd_block_t *block;
 
-	if (!sound_dev_live())
+	if (!sound_dev_live() || !sound_stream_active())
 		return;
 
-	read_count = (uint32_t)ctrl[SOUND_CTRL_DD_READ];
-	if (SOUND_DD_FRAMES - (dd_write_count - read_count) < SOUND_DD_BLOCK)
-		return;
+	if (in_use(SOUND_CTRL_DD_READ, dd_read_floor, dd_write_count) >= SOUND_DD_BLOCKS)
+		return; /*The worklet is far behind, or not playing it at all*/
 
-	first = dd_write_count & (SOUND_DD_FRAMES - 1);
-	samples_to_end = SOUND_DD_FRAMES - first;
-	if (samples_to_end >= SOUND_DD_BLOCK)
-		memcpy(&sound_ring.dd[first], buf, SOUND_DD_BLOCK * 2);
-	else
-	{
-		memcpy(&sound_ring.dd[first], buf, samples_to_end * 2);
-		memcpy(&sound_ring.dd[0], buf + samples_to_end, (SOUND_DD_BLOCK - samples_to_end) * 2);
-	}
+	block = &sound_ring.dd[dd_write_count & (SOUND_DD_BLOCKS - 1)];
+	block->tick = (int32_t)sound_stream_tick_position();
+	block->seq = (int32_t)resets_sent;
+	memcpy(block->samples, buf, sizeof(block->samples));
 
-	dd_write_count += SOUND_DD_BLOCK;
+	dd_write_count++;
 	browser_publish_audio(CTRL_PTR, SOUND_CTRL_DD_WRITE, (int32_t)dd_write_count);
 }
 
@@ -312,7 +315,7 @@ void sound_dev_note_loop(double gap_ms, double run_wall_ms)
   ahead that the record ring would overflow.*/
 int sound_dev_pace_ms(int wall_ms)
 {
-	int run_ms = wall_ms, target_frames, max_ms;
+	int run_ms = wall_ms, target_frames, trim_frames, max_ms;
 	int32_t pending_frames;
 	uint32_t free_records;
 	double pending_ms, adjust_ms;
@@ -380,8 +383,13 @@ int sound_dev_pace_ms(int wall_ms)
 		/*After a stall (a slow arc_run(), or the tab in the background) the wall
 		  clock says to run a lot at once, which would overfill the worklet and
 		  make it throw audio away. The audio is the master clock, so drop the
-		  lost time instead*/
-		max_ms = (int)((double)target_frames / 48.0 + PACE_MAX_OVER_TARGET_MS - pending_ms);
+		  lost time instead. Stopping a little short of where the worklet starts
+		  trimming still leaves room above the target, which is a cushion
+		  against the next stall*/
+		trim_frames = ctrl[SOUND_CTRL_TRIM_FILL];
+		if (trim_frames <= target_frames)
+			trim_frames = target_frames + target_frames / 2;
+		max_ms = (int)((double)trim_frames / 48.0 - PACE_TRIM_MARGIN_MS - pending_ms);
 		if (run_ms > max_ms)
 			run_ms = max_ms;
 		if (run_ms < 0)

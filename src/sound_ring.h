@@ -37,8 +37,8 @@
 
 #define SOUND_REC_COUNT   16384 /*power of two. 16 samples of at least 2 ticks each, so at least 349ms even with a 1.5MHz base clock*/
 #define SOUND_EVENT_COUNT 256  /*power of two*/
-#define SOUND_DD_FRAMES   16384 /*mono samples at 44.1kHz, power of two (371ms)*/
-#define SOUND_DD_BLOCK    4410  /*mono samples per sound_givebufferdd() call*/
+#define SOUND_DD_BLOCKS   8     /*disc noise blocks, power of two (800ms)*/
+#define SOUND_DD_BLOCK    4410  /*mono 44.1kHz samples per sound_givebufferdd() call (100ms)*/
 #define SOUND_CTRL_WORDS  32
 #define SOUND_LOOP_LATE_MS 40
 
@@ -71,19 +71,31 @@ typedef struct sound_event_t
 	double coef[5];      /*IIR coefficients A0, A1, A2, B1, B2 (reset, CLOCK, FILTER)*/
 } sound_event_t;
 
+/*100ms of disc drive noise. ddnoise.c makes each block at the start of the
+  100ms it covers, so it arrives ahead of the main audio for the same moment.
+  The worklet plays it from the output frame whose base clock tick reaches
+  'tick', which locks it to the main audio with no extra latency*/
+typedef struct sound_dd_block_t
+{
+	int32_t tick;        /*ticks written counter (see TICKS_WRITE) at the moment the block starts*/
+	int32_t seq;         /*RESET_SEQ of the stream it belongs to*/
+	int16_t samples[SOUND_DD_BLOCK];
+} sound_dd_block_t;
+
 _Static_assert(sizeof(sound_record_t) == 72, "sound_record_t layout is mirrored in audio-ring.js");
+_Static_assert(sizeof(sound_dd_block_t) == 8828, "sound_dd_block_t layout is mirrored in audio-ring.js");
 _Static_assert(sizeof(sound_event_t) == 64, "sound_event_t layout is mirrored in audio-ring.js");
 
 enum
 {
 	SOUND_CTRL_REC_WRITE = 0, /*emulator: records written*/
 	SOUND_CTRL_REC_READ,      /*worklet: records consumed*/
-	SOUND_CTRL_DD_WRITE,      /*emulator: ddnoise samples written*/
-	SOUND_CTRL_DD_READ,       /*worklet: ddnoise samples consumed*/
+	SOUND_CTRL_DD_WRITE,      /*emulator: disc noise blocks written*/
+	SOUND_CTRL_DD_READ,       /*worklet: disc noise blocks finished with*/
 	SOUND_CTRL_CTX_RUNNING,   /*main thread: AudioContext is running and the worklet is attached*/
 	SOUND_CTRL_GAIN,          /*emulator: sound_gain as a Q8 multiplier*/
 	SOUND_CTRL_DD_GAIN,       /*emulator: disc noise gain as a Q8 multiplier*/
-	SOUND_CTRL_TARGET_FILL,   /*worklet: wanted fill, in output frames*/
+	SOUND_CTRL_TARGET_FILL,   /*worklet: wanted fill, in output frames. It adapts to how often playback runs dry*/
 	SOUND_CTRL_DUMP_STATE,    /*AUDIO_DUMP_* (sound.h) plus SOUND_DUMP_ERROR. Emulator sets WAITING and RECORDING, worklet FINISHED*/
 	SOUND_CTRL_UNDERRUNS,     /*worklet: times playback ran dry*/
 	SOUND_CTRL_SILENT_FRAMES, /*worklet: frames of silence output because of underruns*/
@@ -94,7 +106,7 @@ enum
 	SOUND_CTRL_MAX_FILL,      /*worklet: maximum fill (output frames) since last reset by the main thread*/
 	SOUND_CTRL_RECORDS_DROPPED, /*emulator: records dropped because the ring was full*/
 	SOUND_CTRL_EVENTS_DROPPED,  /*emulator: events dropped because the ring was full*/
-	SOUND_CTRL_DD_UNDERRUNS,  /*worklet: times the ddnoise stream ran dry*/
+	SOUND_CTRL_DD_UNDERRUNS,  /*worklet: times the next disc noise block wasn't there when it was due*/
 	SOUND_CTRL_LOOP_GAP_MAX,  /*emulator: longest gap (ms) between arcloop() calls since last reset by the main thread*/
 	SOUND_CTRL_LOOP_LATE,     /*emulator: arcloop() calls that came more than SOUND_LOOP_LATE_MS after the previous one*/
 	SOUND_CTRL_RUN_MAX,       /*emulator: longest wall time (ms) spent in arc_run() since last reset by the main thread*/
@@ -105,7 +117,8 @@ enum
 	SOUND_CTRL_RESET_ACK,     /*worklet: the RESET_SEQ of the last reset it applied*/
 	SOUND_CTRL_DUMP_FRAMES,   /*worklet: frames captured so far by the audio dump*/
 	SOUND_CTRL_FRAME_WM,      /*emulator: output frame watermark - every event that applies to a frame before this has been published*/
-	SOUND_CTRL_RESET_SEQ      /*emulator: resets sent. The latest is in reset_slot[RESET_SEQ & 1]*/
+	SOUND_CTRL_RESET_SEQ,     /*emulator: resets sent. The latest is in reset_slot[RESET_SEQ & 1]*/
+	SOUND_CTRL_TRIM_FILL      /*worklet: fill (output frames) above which it throws audio away. Moves with the target*/
 };
 
 #define SOUND_DUMP_ERROR 4
@@ -119,7 +132,7 @@ typedef struct sound_ring_t
 	sound_event_t reset_slot[2];
 	sound_event_t events[SOUND_EVENT_COUNT];
 	sound_record_t records[SOUND_REC_COUNT];
-	int16_t dd[SOUND_DD_FRAMES];
+	sound_dd_block_t dd[SOUND_DD_BLOCKS];
 } sound_ring_t;
 
 /*Platform (js/audio.js) side of the stream, called by sound.c*/
@@ -161,6 +174,12 @@ int sound_dev_pace_ms(int wall_ms);
 uint32_t sound_stream_frame_position(void);
 /*There is a stream that the worklet has been told to follow*/
 int sound_stream_active(void);
+/*The base clock tick that emulated time has reached, on the same count as
+  TICKS_WRITE. Records are written at the start of the ticks they cover, so
+  this is TICKS_WRITE less what is left of the latest one*/
+uint32_t sound_stream_tick_position(void);
+/*Implemented in sound_emscripten.c: TICKS_WRITE*/
+uint32_t sound_dev_ticks_written(void);
 /*Publish what has been sent to the worklet. Call after each arc_run()*/
 void sound_stream_flush(void);
 

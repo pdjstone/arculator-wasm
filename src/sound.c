@@ -459,6 +459,13 @@ int sound_stream_active(void)
 	return soundena && sound_stream_valid;
 }
 
+uint32_t sound_stream_tick_position(void)
+{
+	uint64_t remaining = timer_get_remaining_u64(&sound_timer);
+
+	return sound_dev_ticks_written() - (uint32_t)(remaining / sound_timer_base_period);
+}
+
 /*Called for each VIDC sound DMA fetch with its 16 stereo samples*/
 static void sound_stream_poll(const int16_t *samples)
 {
