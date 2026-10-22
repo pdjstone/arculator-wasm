@@ -45,7 +45,7 @@ OBJS_NATIVE := $(addprefix build/native/,$(addsuffix .o,${OBJS} sound))
 OBJS_WASM   := $(addprefix build/wasm/,$(addsuffix .o,${OBJS} sound_worklet))
 
 ######################################################################
-all:	native wasm
+all:	native wasm extnrom
 
 clean:
 	rm -rf build
@@ -76,7 +76,21 @@ build/wasm/%.o: src/%.c
 	emcc -c ${CFLAGS} ${CFLAGS_WASM} $< -o $@
 
 ######################################################################
-roms/arcrom_ext: roms/riscos311/ros311
+# Extension ROM with the HostFS support modules. The modules are only
+# reassembled (needs arm-none-eabi binutils) when their source changes.
+PYTHON := python3
+EXTNROM_MODULES := src/hostfs/hostfs,ffa src/hostfs/hostfsfiler,ffa
+
+.PHONY: extnrom
+extnrom: roms/arcrom_ext
+
+roms/arcrom_ext: scripts/make_extnrom.py ${EXTNROM_MODULES}
+	${PYTHON} scripts/make_extnrom.py -o $@ ${EXTNROM_MODULES}
+
+src/hostfs/%,ffa: src/hostfs/%.s
+	$(MAKE) -C src/hostfs $*,ffa
+
+######################################################################
 roms/riscos311/ros311:
 	curl -s http://b-em.bbcmicro.com/arculator/Arculator_V2.2_Linux.tar.gz | tar xz roms
 
