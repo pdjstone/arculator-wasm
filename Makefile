@@ -32,7 +32,7 @@ OBJS := 82c711 82c711_fdc \
 	debugger debugger_swis ddnoise \
 	disc disc_adf disc_mfm_common disc_hfe \
 	ds2401 eterna fdi2raw fpa g16 g332 \
-	hostfs ide ide_a3in ide_config ide_idea \
+	hostfs ide ide_a3in ide_config ide_idea jscli \
 	ide_riscdev ide_zidefs ide_zidefs_a3k \
 	input_emscripten ioc ioeb joystick keyboard \
 	lc main mem memc podules printer \
@@ -76,10 +76,11 @@ build/wasm/%.o: src/%.c
 	emcc -c ${CFLAGS} ${CFLAGS_WASM} $< -o $@
 
 ######################################################################
-# Extension ROM with the HostFS support modules. The modules are only
+# Extension ROM with the HostFS and JSCLI support modules. The modules are only
 # reassembled (needs arm-none-eabi binutils) when their source changes.
 PYTHON := python3
-EXTNROM_MODULES := src/hostfs/hostfs,ffa src/hostfs/hostfsfiler,ffa
+EXTNROM_MODULES := src/hostfs/hostfs,ffa src/hostfs/hostfsfiler,ffa \
+	src/jscli/jscli,ffa src/jscli/jscliwimp,ffa
 
 .PHONY: extnrom
 extnrom: roms/arcrom_ext
@@ -89,6 +90,9 @@ roms/arcrom_ext: scripts/make_extnrom.py ${EXTNROM_MODULES}
 
 src/hostfs/%,ffa: src/hostfs/%.s
 	$(MAKE) -C src/hostfs $*,ffa
+
+src/jscli/%,ffa: src/jscli/%.s src/jscli/jscli-defs.s
+	$(MAKE) -C src/jscli $*,ffa
 
 ######################################################################
 roms/riscos311/ros311:

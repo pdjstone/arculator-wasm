@@ -11,6 +11,7 @@
 #include "fpa.h"
 #include "hostfs.h"
 #include "ide.h"
+#include "jscli.h"
 #include "ioc.h"
 #include "keyboard.h"
 #include "mem.h"
@@ -643,6 +644,8 @@ static int countbitstable[65536];
 void resetarm()
 {
 	int c,d,exec;
+
+	jscli_reset();
 	for (c=0;c<65536;c++)
 	{
 		countbitstable[c]=0;
@@ -2572,6 +2575,14 @@ static void opSWI(uint32_t opcode)
 		uint32_t templ = memmode;
 		memmode = MEMMODE_SUPER;
 		hostfs(&state);
+		memmode = templ;
+	}
+	else if ((opcode & 0xdffff) == ARCEM_SWI_JSCLI)
+	{
+		uint32_t templ = memmode;
+
+		memmode = MEMMODE_SUPER;
+		jscli_swi(armregs);
 		memmode = templ;
 	}
 	/*else if ((opcode&0xFFFF)==0x1C && mouse_mode == MOUSE_MODE_ABSOLUTE)
