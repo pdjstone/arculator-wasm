@@ -509,7 +509,12 @@ void clearbitmap()
 
 void initvid()
 {
-	buffer = create_bitmap(2048, 1024);
+	/*Keep the bitmap across arc_close()/arc_init() (machine changes in the
+	  web build): the renderer holds a pointer into it*/
+	if (!buffer)
+		buffer = create_bitmap(2048, 1024);
+	else
+		clear(buffer);
 	vidc.line = 0;
 	vidc.clock = 24000;
 }
