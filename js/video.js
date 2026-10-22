@@ -88,6 +88,7 @@ function video_renderer_init(main_window) {
         dblScan: false,
         xOffset: null,
         yOffset: null,
+        bufferPointer: null,
         view: null,
         // from vidc.c create_bitmap
         MAX_WIDTH: 2048,
@@ -105,10 +106,15 @@ function update_window_size(w,h) {
 }
 
 function update_texture(bufferPointer, x, y, w, h) {
-    if (w !== Module.renderer.textureWidth || h !== Module.renderer.textureHeight) {
+    // The view also depends on where the frame bitmap is, so rebuild it if that moves
+    if (w !== Module.renderer.textureWidth || h !== Module.renderer.textureHeight ||
+        bufferPointer !== Module.renderer.bufferPointer || x !== Module.renderer.xOffset || y !== Module.renderer.yOffset) {
         console.log('resize texture', x, y, w, h);
         Module.renderer.textureWidth = w;
         Module.renderer.textureHeight = h;        
+        Module.renderer.bufferPointer = bufferPointer;
+        Module.renderer.xOffset = x;
+        Module.renderer.yOffset = y;
       
         let gl = Module.renderer.gl;
 
@@ -135,6 +141,31 @@ function render(src_x, src_y, src_w, src_h, dblScan) {
     let gl = Module.renderer.gl;
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, Module.renderer.textureWidth, Module.renderer.textureHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, Module.renderer.view);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    if (Module.screenshotRequests && Module.screenshotRequests.length) {
+        let frame = capture_frame();
+        for (let callback of Module.screenshotRequests.splice(0))
+            callback(frame);
+    }
+}
+
+/*Copy the frame just presented out of the display buffer, for a screenshot.
+  Module.screenshotRequests is a list of callbacks waiting for the next frame
+  (see arculator-worker.js). Returns {width, height, pixels}: RGBA, the size
+  the canvas shows it, so double-scanned lines are doubled.*/
+function capture_frame() {
+    let r = Module.renderer;
+    let w = r.textureWidth, h = r.textureHeight, scale = r.dblScan ? 2 : 1;
+    let pixels = new Uint8ClampedArray(w * h * scale * 4);
+    for (let y = 0; y < h; y++) {
+        let src = r.view.subarray((y * r.MAX_WIDTH + r.xOffset) * 4, (y * r.MAX_WIDTH + r.xOffset + w) * 4);
+        for (let s = 0; s < scale; s++)
+            pixels.set(src, (y * scale + s) * w * 4);
+    }
+    // The buffer's alpha bytes aren't set, and the WebGL canvas ignores them
+    for (let i = 3; i < pixels.length; i += 4)
+        pixels[i] = 255;
+    return { width: w, height: h * scale, pixels: pixels };
 }
 
 
@@ -142,5 +173,7 @@ mergeInto(LibraryManager.library, {
     video_renderer_init: video_renderer_init,
     emscripten_render_update: update_texture,
     emscripten_render_present: render,
+    emscripten_render_present__deps: ['$capture_frame'],
+    $capture_frame: capture_frame,
     emscripten_update_window_size: update_window_size
 });
