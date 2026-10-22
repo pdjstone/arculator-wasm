@@ -135,7 +135,7 @@ typedef struct sound_ring_t
 	sound_dd_block_t dd[SOUND_DD_BLOCKS];
 } sound_ring_t;
 
-/*Platform (js/audio.js) side of the stream, called by sound.c*/
+/*Platform (js/audio.js) side of the stream, called by sound_worklet.c*/
 
 /*The AudioContext is running and has a worklet attached, so there is someone to
   send the stream to*/
@@ -169,7 +169,7 @@ void sound_dev_set_dump_state(int state);
   wall_ms unchanged when audio isn't playing*/
 int sound_dev_pace_ms(int wall_ms);
 
-/*Implemented in sound.c*/
+/*Implemented in sound_worklet.c*/
 /*The output frame that the emulation has reached, counted from the last reset*/
 uint32_t sound_stream_frame_position(void);
 /*There is a stream that the worklet has been told to follow*/

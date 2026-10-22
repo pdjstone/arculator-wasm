@@ -5,7 +5,7 @@ BUILD_TAG := $(shell echo `git rev-parse --short HEAD`-`[[ -n $$(git status -s) 
 
 CC             := gcc
 CFLAGS         := -D_REENTRANT -Wall -Werror -DBUILD_TAG="${BUILD_TAG}"
-CFLAGS_WASM    := -sUSE_ZLIB=1 -DARC_AUDIO_WORKLET
+CFLAGS_WASM    := -sUSE_ZLIB=1
 LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
 EM_RUNTIME_API := ccall,FS,callMain,HEAPU8,HEAPU32
@@ -36,13 +36,13 @@ OBJS := 82c711 82c711_fdc \
 	ide_riscdev ide_zidefs ide_zidefs_a3k \
 	input_emscripten ioc ioeb joystick keyboard \
 	lc main mem memc podules printer \
-	riscdev_hdfc romload sound sound_emscripten \
+	riscdev_hdfc romload sound_emscripten \
 	st506 st506_akd52 timer vidc video_emscripten wd1770 \
 	joystick_emscripten hostfs-unix podules-linux \
 	emscripten_main emscripten-console hostfs_emscripten
-OBJS_DOT_O  := $(addsuffix .o,${OBJS})
-OBJS_NATIVE := $(addprefix build/native/,${OBJS_DOT_O})
-OBJS_WASM   := $(addprefix build/wasm/,${OBJS_DOT_O})
+# The wasm build does its sound filtering and resampling in an AudioWorklet
+OBJS_NATIVE := $(addprefix build/native/,$(addsuffix .o,${OBJS} sound))
+OBJS_WASM   := $(addprefix build/wasm/,$(addsuffix .o,${OBJS} sound_worklet))
 
 ######################################################################
 all:	native wasm

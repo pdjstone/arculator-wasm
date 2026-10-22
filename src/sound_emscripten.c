@@ -1,4 +1,4 @@
-/*AudioWorklet audio backend. sound.c turns the VIDC's sound DMA into a stream
+/*AudioWorklet audio backend. sound_worklet.c turns the VIDC's sound DMA into a stream
   of records and events; this puts them in rings in shared memory (see
   sound_ring.h) for the AudioWorklet, which filters and resamples them to 48kHz
   (frontend/audio-dsp.js), applies the gain and mixes in the disc noise.*/
@@ -188,7 +188,7 @@ static uint32_t records_in_use(void)
 	return in_use(SOUND_CTRL_REC_READ, rec_read_floor, rec_write_count);
 }
 
-/*Append one VIDC sound DMA fetch to the record ring. Called by sound.c for
+/*Append one VIDC sound DMA fetch to the record ring. Called by sound_worklet.c for
   every fetch while the stream is valid. samples holds the 16 left, right
   pairs after volume and stereo mixing, and period is the number of base clock
   ticks each of them is held for, which the worklet needs to rebuild the zero
