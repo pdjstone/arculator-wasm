@@ -561,8 +561,10 @@ void initvid()
 {
 	/*Keep the bitmap across arc_close()/arc_init() (machine changes in the
 	  web build): the renderer holds a pointer into it*/
+	/*2048 lines, as interlaced modes draw each line at l*2 (+1 for odd
+	  fields) and vidc_poll() allows l up to 1023*/
 	if (!buffer)
-		buffer = create_bitmap(2048, 1024);
+		buffer = create_bitmap(2048, 2048);
 	else
 		clear(buffer);
 	vidc.line = 0;
@@ -1224,6 +1226,7 @@ static void vidc_poll(void *__p)
 				if (vidc.interlace_enable)
 				{
 					LOG_VIDEO_FRAMES("PRESENT: normal display\n");
+					update_screen_geometry(0, 0, hd_end-hd_start, height * 2);
 					updatewindowsize(hd_end-hd_start, height * 2);
 					video_renderer_update(buffer, hd_start, vidc.disp_y_min * 2, 0, 0, hd_end-hd_start, height * 2);
 					video_renderer_present(0, 0, hd_end-hd_start, height * 2, 0);
@@ -1268,6 +1271,7 @@ static void vidc_poll(void *__p)
 				if (vidc.interlace_enable)
 				{
 					LOG_VIDEO_FRAMES("UPDATE AND PRESENT: fullborders|fullscreen no doubling\n");
+					update_screen_geometry(hb_width, vb_height * 2, disp_width, disp_height * 2);
 					updatewindowsize(hb_end-hb_start, (vidc.y_max-vidc.y_min) * 2);
 					video_renderer_update(buffer, hb_start, vidc.y_min*2, 0, 0, hb_end-hb_start, (vidc.y_max-vidc.y_min)*2);
 					video_renderer_present(0, 0, hb_end-hb_start, (vidc.y_max-vidc.y_min)*2, 0);

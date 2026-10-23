@@ -92,7 +92,7 @@ function video_renderer_init(main_window) {
         view: null,
         // from vidc.c create_bitmap
         MAX_WIDTH: 2048,
-        MAX_HEIGHT: 1024,
+        MAX_HEIGHT: 2048,
     }
 
     return 1;
