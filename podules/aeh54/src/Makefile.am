@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aeh54.dll
-../aeh54.dll: libaeh54.la
-	cp .libs/libaeh54-0.dll ../aeh54.dll
+noinst_SCRIPTS += ../aeh54$(SO_EXT)
+../aeh54$(SO_EXT): libaeh54.la
+	cp .libs/libaeh54-0$(SO_EXT) ../aeh54$(SO_EXT)
 libaeh54_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aeh54.so
-../aeh54.so: libaeh54.la
-	cp .libs/libaeh54.so ../aeh54.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aeh54.dylib
-../aeh54.dylib: libaeh54.la
-	cp .libs/libaeh54.dylib ../aeh54.dylib
+noinst_SCRIPTS += ../aeh54$(SO_EXT)
+../aeh54$(SO_EXT): libaeh54.la
+	cp .libs/libaeh54$(SO_EXT) ../aeh54$(SO_EXT)
 endif
 
 amrefresh:	

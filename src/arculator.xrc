@@ -118,6 +118,296 @@
 					<radio>1</radio>
 				</object>
 			</object>
+			<object class="wxMenu">
+				<label>_Black level</label>
+				<object class="wxMenuItem" name="IDM_BLACK_ACORN">
+					<label>_Acorn</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_BLACK_NORMAL">
+					<label>_Normal</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="separator"/>
+			<object class="wxMenu" name="IDM_VIDEO_RENDER_DRIVER">
+				<label>Render _driver</label>
+				<object class="wxMenuItem" name="IDM_DRIVER_AUTO">
+					<label>_Auto</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DRIVER_DIRECT3D">
+					<label>_Direct3D</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DRIVER_OPENGL">
+					<label>_OpenGL</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DRIVER_SOFTWARE">
+					<label>_Software</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu">
+				<label>_Scale filtering</label>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE_NEAREST">
+					<label>_Nearest</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE_LINEAR">
+					<label>_Linear</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu">
+				<label>_Output stretch-mode</label>
+				<object class="wxMenuItem" name="IDM_VIDEO_FS_FULL">
+					<label>_None</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_FS_43">
+					<label>_4:3</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_FS_SQ">
+					<label>_Square pixels</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_FS_INT">
+					<label>_Integer scale</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu" name="IDM_VIDEO_SCALE_MENU">
+				<label>Output scale</label>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[0]">
+					<label>0.5x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[1]">
+					<label>1x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[2]">
+					<label>1.5x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[3]">
+					<label>2x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[4]">
+					<label>2.5x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[5]">
+					<label>3x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[6]">
+					<label>3.5x</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_SCALE[7]">
+					<label>4x</label>
+					<radio>1</radio>
+				</object>
+			</object>
+		</object>
+		<object class="wxMenu">
+			<label>_Sound</label>
+			<object class="wxMenuItem" name="IDM_SOUND_ENABLE">
+				<label>_Sound enable</label>
+				<checkable>1</checkable>
+			</object>
+			<object class="wxMenuItem" name="IDM_SOUND_STEREO">
+				<label>S_tereo sound</label>
+				<checkable>1</checkable>
+			</object>
+                        <object class="separator"/>
+			<object class="wxMenu">
+				<label>_Output level</label>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[0]">
+					<label>_Normal</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[1]">
+					<label>+_2 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[2]">
+					<label>+_4 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[3]">
+					<label>+_6 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[4]">
+					<label>+_8 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[5]">
+					<label>+_10 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[6]">
+					<label>+12 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[7]">
+					<label>+14 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[8]">
+					<label>+16 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_SOUND_GAIN[9]">
+					<label>+18 dB</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu">
+				<label>Output _filter</label>
+				<object class="wxMenuItem" name="IDM_FILTER_ORIGINAL">
+					<label>_Original</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_FILTER_REDUCED">
+					<label>_Reduced</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_FILTER_MORE_REDUCED">
+					<label>_More reduced</label>
+					<radio>1</radio>
+				</object>
+			</object>
+		</object>
+		<object class="wxMenu">
+			<label>_Settings</label>
+			<object class="wxMenuItem" name="IDM_SETTINGS_CONFIGURE">
+				<label>_Configure machine...</label>
+			</object>
+		</object>
+		<object class="wxMenu">
+			<label>_Debugger</label>
+			<object class="wxMenuItem" name="IDM_DEBUGGER_ENABLE">
+				<label>_Enable debugger</label>
+				<checkable>1</checkable>
+			</object>
+			<object class="wxMenuItem" name="IDM_DEBUGGER_BREAK">
+				<label>_Break</label>
+			</object>
+		</object>
+	</object>
+
+	<object class="wxMenuBar" name="main_menu_bar">
+		<object class="wxMenu">
+			<label>_File</label>
+			<object class="wxMenuItem" name="IDM_FILE_RESET">
+				<label>_Hard reset</label>
+			</object>
+			<object class="separator"/>
+			<object class="wxMenuItem" name="IDM_FILE_EXIT">
+				<label>_Exit</label>
+			</object>
+		</object>
+		<object class="wxMenu">
+			<label>_Disc</label>
+			<object class="wxMenuItem" name="IDM_DISC_CHANGE_0">
+				<label>Change drive _0:...</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_CHANGE_1">
+				<label>Change drive _1:...</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_CHANGE_2">
+				<label>Change drive _2:...</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_CHANGE_3">
+				<label>Change drive _3:...</label>
+			</object>
+			<object class="separator"/>
+			<object class="wxMenuItem" name="IDM_DISC_EJECT_0">
+				<label>_Eject drive 0:</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_EJECT_1">
+				<label>Eject drive 1:</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_EJECT_2">
+				<label>Eject drive 2:</label>
+			</object>
+			<object class="wxMenuItem" name="IDM_DISC_EJECT_3">
+				<label>Eject drive 3:</label>
+			</object>
+			<object class="separator"/>
+			<object class="wxMenu">
+				<label>_Disc drive noise</label>
+				<object class="wxMenuItem" name="IDM_DISC_NOISE[0]">
+					<label>Disabled</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DISC_NOISE[1]">
+					<label>0 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DISC_NOISE[2]">
+					<label>-2 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DISC_NOISE[3]">
+					<label>-4 dB</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_DISC_NOISE[4]">
+					<label>-6 dB</label>
+					<radio>1</radio>
+				</object>
+			</object>
+		</object>
+		<object class="wxMenu">
+			<label>Video</label>
+			<object class="wxMenuItem" name="IDM_VIDEO_FULLSCR">
+				<label>_Fullscreen</label>
+			</object>
+			<object class="wxMenu">
+				<label>_Border size</label>
+				<object class="wxMenuItem" name="IDM_VIDEO_NO_BORDERS">
+					<label>_No borders</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_NATIVE_BORDERS">
+					<label>N_ative borders</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_VIDEO_TV">
+					<label>_Fixed (standard monitor) borders</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu">
+				<label>_Blit method</label>
+				<object class="wxMenuItem" name="IDM_BLIT_SCAN">
+					<label>_Scanlines</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_BLIT_SCALE">
+					<label>_Line doubling</label>
+					<radio>1</radio>
+				</object>
+			</object>
+			<object class="wxMenu">
+				<label>_Black level</label>
+				<object class="wxMenuItem" name="IDM_BLACK_ACORN">
+					<label>_Acorn</label>
+					<radio>1</radio>
+				</object>
+				<object class="wxMenuItem" name="IDM_BLACK_NORMAL">
+					<label>_Normal</label>
+					<radio>1</radio>
+				</object>
+			</object>
 			<object class="separator"/>
 			<object class="wxMenu" name="IDM_VIDEO_RENDER_DRIVER">
 				<label>Render _driver</label>

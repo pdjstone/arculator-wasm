@@ -27,3 +27,11 @@ To build and test the Emscripten version:
 You can also build a native equivalent by running `make -j8 native DEBUG=1`.
 
 We're working on a better front-end at the [Archimedes Live](https://github.com/pdjstone/archimedes-live) project. Join us!
+
+Upstream Arculator
+------------------
+
+Licensed under GPL v2.0, see [COPYING](COPYING) for more details.
+
+### Upstream contribution policy
+AI generated/assisted code is not allowed in Arculator. Pull Requests with AI generated code will be rejected. Code subsequently discovered to be AI generated/assisted will be removed without warning.

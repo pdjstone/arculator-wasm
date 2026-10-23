@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../morley_uap.dll
-../morley_uap.dll: libmorley_uap.la
-	cp .libs/libmorley_uap-0.dll ../morley_uap.dll
+noinst_SCRIPTS += ../morley_uap$(SO_EXT)
+../morley_uap$(SO_EXT): libmorley_uap.la
+	cp .libs/libmorley_uap-0$(SO_EXT) ../morley_uap$(SO_EXT)
 libmorley_uap_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../morley_uap.so
-../morley_uap.so: libmorley_uap.la
-	cp .libs/libmorley_uap.so ../morley_uap.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../morley_uap.dylib
-../morley_uap.dylib: libmorley_uap.la
-	cp .libs/libmorley_uap.dylib ../morley_uap.dylib
+noinst_SCRIPTS += ../morley_uap$(SO_EXT)
+../morley_uap$(SO_EXT): libmorley_uap.la
+	cp .libs/libmorley_uap$(SO_EXT) ../morley_uap$(SO_EXT)
 endif
 
 amrefresh:	

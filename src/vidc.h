@@ -4,6 +4,7 @@
 extern int vidc_displayon;
 
 extern void vidc_redovideotiming();
+void vidc_redopalette(void);
 extern void vidc_setclock(int clock);
 void vidc_setclock_direct(int clock);
 extern int vidc_getclock();
@@ -11,7 +12,10 @@ int vidc_get_hs();
 extern void closevideo();
 /*Attach device to VIDC extenal data port. vidc_data() provides device with a
   scanline's worth of pixels. vidc_vsync() indicates the start of VIDC's vsync*/
-void vidc_attach(void (*vidc_data)(uint8_t *data, int pixels, int hsync_length, int resolution, void *p), void (*vidc_vsync)(void *p, int state), void *p);
+void vidc_attach(void (*vidc_data)(uint8_t *data, int pixels, int hsync_length, int resolution, void *p),
+		 void (*vidc_vsync)(void *p, int state),
+		 void (*redopalette)(void *p),
+		 void *p);
 /*Enable VIDC output. Set to 0 if another device is driving the screen*/
 void vidc_output_enable(int ena);
 
@@ -41,7 +45,7 @@ void destroy_bitmap(BITMAP *b);
 
 typedef struct
 {
-	uint8_t r, g, b;
+	int r, g, b;
 } RGB;
 
 typedef RGB PALETTE[256];

@@ -239,7 +239,7 @@ static void pollsound(void *p)
 			ioc_irqb(IOC_IRQB_SOUND_BUFFER);
 		}
 		else
-			spos += 16;
+			spos = (spos + 16) & 0x7fff0;
 	}
 }
 

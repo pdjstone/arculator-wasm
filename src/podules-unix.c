@@ -57,13 +57,13 @@ void opendlls(void)
 		dll_t *dll = malloc(sizeof(dll_t));
 		memset(dll, 0, sizeof(dll_t));
 
-		if (dp->d_type != DT_DIR)
+		if (dp->d_type != DT_DIR || dp->d_name[0] == '.')
 		{
 			free(dll);
 			continue;
 		}
 
-		sprintf(so_name, "/%s.dylib", dp->d_name);
+		sprintf(so_name, "/%s%s", dp->d_name, SO_EXT);
 		append_filename(so_fn, podule_path, dp->d_name, sizeof(so_fn));
 		append_filename(so_fn, so_fn, so_name, sizeof(so_fn));
 
@@ -71,7 +71,7 @@ void opendlls(void)
 		if (dll->lib == NULL)
 		{
 			char *lasterror = dlerror();
-			rpclog("Failed to open dylib %s %s\n", dp->d_name, lasterror);
+			rpclog("Failed to open shared object %s %s\n", dp->d_name, lasterror);
 			free(dll);
 			continue;
 		}
@@ -105,6 +105,7 @@ void opendlls(void)
 		}
 
 		uint32_t flags;
+
 		do
 		{
 			flags = header->flags;

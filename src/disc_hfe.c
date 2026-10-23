@@ -98,10 +98,7 @@ static int hfe_load_header(hfe_t *hfe, int drive)
 //        rpclog("  track_list_offset: %i\n", header->track_list_offset);
 	hfe->is_v3 = !strncmp(header->signature, "HXCHFEV3", 8);
 	if (hfe->is_v3)
-	{
 		rpclog("Loading as HFE v3\n");
-		writeprot[drive] = 1;
-	}
 	hfe->tracks = malloc(header->nr_of_tracks * header->nr_of_sides * sizeof(hfe_track_t));
 	fseek(hfe->f, header->track_list_offset * 0x200, SEEK_SET);
 	ignore_result(fread(hfe->tracks, header->nr_of_tracks * header->nr_of_sides * sizeof(hfe_track_t), 1, hfe->f));
@@ -289,8 +286,12 @@ static void process_v3_track(mfm_t *mfm, int side)
 				break;
 
 				case HFE_V3_OPCODE_RAND:
-				/*Not currently implemented, just add a byte of zeroes*/
-				wp += 8;
+				for (int j = 0; j < 8; j++)
+				{
+					if (rand() & 1)
+						mfm->track_data[side][wp >> 3] |= 0x80 >> (wp & 7);
+					wp++;
+				}
 				break;
 
 				default:
@@ -385,9 +386,6 @@ static void hfe_writeback(int drive)
 	int track = hfe[drive].current_track;
 	uint8_t track_data[2][65536];
 	int c;
-
-	if (hfe[drive].is_v3)
-		return;
 
 //        rpclog("hfe_writeback: drive=%i track=%i\n", drive, track);
 

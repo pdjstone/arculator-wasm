@@ -2,7 +2,7 @@
   wxApp implementation
   Menus are also handled here*/
 #include <sstream>
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 #ifdef _WIN32
 #define BITMAP WINDOWS_BITMAP
@@ -81,7 +81,16 @@ bool App::OnInit()
 }
 
 static void *main_frame = NULL;
-static void *main_menu = NULL;
+void *main_menu = NULL;
+
+static wxMenuItem *find_item(int id)
+{
+#ifdef UI_WX
+	return ((wxMenuBar *)main_menu)->FindItem(id);
+#else
+	return ((wxMenu *)main_menu)->FindItem(id);
+#endif
+}
 
 Frame::Frame(App* app, const wxString& title, const wxPoint& pos,
 		const wxSize& size) :
@@ -89,8 +98,13 @@ Frame::Frame(App* app, const wxString& title, const wxPoint& pos,
 {
 	main_frame = this;
 
+#ifdef UI_WX
+	this->menu = wxXmlResource::Get()->LoadMenuBar(wxT("main_menu_bar"));
+	main_menu = this->menu;
+#else
 	this->menu = wxXmlResource::Get()->LoadMenu(wxT("main_menu"));
 	main_menu = this->menu;
+#endif
 
 	Bind(wxEVT_MENU, &Frame::OnMenuCommand, this);
 	Bind(WX_POPUP_MENU_EVENT, &Frame::OnPopupMenuEvent, this);
@@ -117,11 +131,6 @@ void Frame::Start()
 		Quit(0);
 }
 
-wxMenu* Frame::GetMenu()
-{
-	return menu;
-}
-
 void Frame::Quit(bool stop_emulator)
 {
 	Destroy();
@@ -145,77 +154,82 @@ void Frame::OnPrintErrorEvent(wxCommandEvent &event)
 	wxMessageBox(event.GetString(), "Arculator", wxOK | wxCENTRE | wxSTAY_ON_TOP | wxICON_ERROR, this);
 }
 
-void Frame::UpdateMenu(wxMenu *menu)
+void Frame::UpdateMenu()
 {
 	char menuitem[80];
-	wxMenuItem *item = ((wxMenu*)menu)->FindItem(XRCID("IDM_SOUND_ENABLE"));
+	wxMenuItem *item = find_item(XRCID("IDM_SOUND_ENABLE"));
 	item->Check(soundena);
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_SOUND_STEREO"));
+	item = find_item(XRCID("IDM_SOUND_STEREO"));
 	item->Check(stereo);
 	if (sound_filter == 0)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_FILTER_ORIGINAL"));
+		item = find_item(XRCID("IDM_FILTER_ORIGINAL"));
 	else if (sound_filter == 1)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_FILTER_REDUCED"));
+		item = find_item(XRCID("IDM_FILTER_REDUCED"));
 	else if (sound_filter == 2)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_FILTER_MORE_REDUCED"));
+		item = find_item(XRCID("IDM_FILTER_MORE_REDUCED"));
 	item->Check(true);
 
 	if (disc_noise_gain == 0)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DISC_NOISE[1]"));
+		item = find_item(XRCID("IDM_DISC_NOISE[1]"));
 	else if (disc_noise_gain == -2)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DISC_NOISE[2]"));
+		item = find_item(XRCID("IDM_DISC_NOISE[2]"));
 	else if (disc_noise_gain == -4)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DISC_NOISE[3]"));
+		item = find_item(XRCID("IDM_DISC_NOISE[3]"));
 	else if (disc_noise_gain == -6)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DISC_NOISE[4]"));
+		item = find_item(XRCID("IDM_DISC_NOISE[4]"));
 	else
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DISC_NOISE[0]"));
+		item = find_item(XRCID("IDM_DISC_NOISE[0]"));
 	item->Check(true);
 
 	if (dblscan)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_BLIT_SCALE"));
+		item = find_item(XRCID("IDM_BLIT_SCALE"));
 	else
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_BLIT_SCAN"));
+		item = find_item(XRCID("IDM_BLIT_SCAN"));
 	item->Check(true);
 	if (display_mode == DISPLAY_MODE_NO_BORDERS)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_NO_BORDERS"));
+		item = find_item(XRCID("IDM_VIDEO_NO_BORDERS"));
 	else if (display_mode == DISPLAY_MODE_NATIVE_BORDERS)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_NATIVE_BORDERS"));
+		item = find_item(XRCID("IDM_VIDEO_NATIVE_BORDERS"));
 	else
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_TV"));
+		item = find_item(XRCID("IDM_VIDEO_TV"));
 	item->Check(true);
 	if (video_fullscreen_scale == FULLSCR_SCALE_FULL)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_FS_FULL"));
+		item = find_item(XRCID("IDM_VIDEO_FS_FULL"));
 	else if (video_fullscreen_scale == FULLSCR_SCALE_43)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_FS_43"));
+		item = find_item(XRCID("IDM_VIDEO_FS_43"));
 	else if (video_fullscreen_scale == FULLSCR_SCALE_SQ)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_FS_SQ"));
+		item = find_item(XRCID("IDM_VIDEO_FS_SQ"));
 	else if (video_fullscreen_scale == FULLSCR_SCALE_INT)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_FS_INT"));
+		item = find_item(XRCID("IDM_VIDEO_FS_INT"));
 	item->Check(true);
 	if (video_linear_filtering)
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_SCALE_LINEAR"));
+		item = find_item(XRCID("IDM_VIDEO_SCALE_LINEAR"));
 	else
-		item = ((wxMenu*)menu)->FindItem(XRCID("IDM_VIDEO_SCALE_NEAREST"));
+		item = find_item(XRCID("IDM_VIDEO_SCALE_NEAREST"));
+	item->Check(true);
+	if (video_black_level == BLACK_LEVEL_ACORN)
+		item = find_item(XRCID("IDM_BLACK_ACORN"));
+	else
+		item = find_item(XRCID("IDM_BLACK_NORMAL"));
 	item->Check(true);
 	sprintf(menuitem, "IDM_VIDEO_SCALE[%d]", video_scale);
-	item = ((wxMenu*)menu)->FindItem(XRCID(menuitem));
+	item = find_item(XRCID(menuitem));
 	item->Check(true);
 
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DRIVER_AUTO"));
+	item = find_item(XRCID("IDM_DRIVER_AUTO"));
 	item->Enable(video_renderer_available(RENDERER_AUTO) ? true : false);
 	item->Check((selected_video_renderer == RENDERER_AUTO) ? true : false);
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DRIVER_DIRECT3D"));
+	item = find_item(XRCID("IDM_DRIVER_DIRECT3D"));
 	item->Enable(video_renderer_available(RENDERER_DIRECT3D) ? true : false);
 	item->Check((selected_video_renderer == RENDERER_DIRECT3D) ? true : false);
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DRIVER_OPENGL"));
+	item = find_item(XRCID("IDM_DRIVER_OPENGL"));
 	item->Enable(video_renderer_available(RENDERER_OPENGL) ? true : false);
 	item->Check((selected_video_renderer == RENDERER_OPENGL) ? true : false);
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DRIVER_SOFTWARE"));
+	item = find_item(XRCID("IDM_DRIVER_SOFTWARE"));
 	item->Enable(video_renderer_available(RENDERER_SOFTWARE) ? true : false);
 	item->Check((selected_video_renderer == RENDERER_SOFTWARE) ? true : false);
 
-	item = ((wxMenu*)menu)->FindItem(XRCID("IDM_DEBUGGER_ENABLE"));
+	item = find_item(XRCID("IDM_DEBUGGER_ENABLE"));
 	item->Check(debug);
 }
 
@@ -224,12 +238,12 @@ void Frame::OnPopupMenuEvent(PopupMenuEvent &event)
 	wxWindow *window = event.GetWindow();
 	wxMenu *menu = event.GetMenu();
 
-	UpdateMenu(menu);
+	UpdateMenu();
 
 	window->PopupMenu(menu);
 }
 
-void Frame::ChangeDisc(int drive)
+static void ChangeDisc(int drive)
 {
 	wxString old_fn(discname[drive]);
 
@@ -251,7 +265,7 @@ void Frame::ChangeDisc(int drive)
 extern "C" void arc_send_close();
 #endif
 
-void Frame::OnMenuCommand(wxCommandEvent &event)
+void OnMenuCommandCommon( wxCommandEvent &event, wxWindow *parent)
 {
 	if (event.GetId() == XRCID("IDM_FILE_EXIT"))
 	{
@@ -301,7 +315,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 		 event.GetId() == XRCID("IDM_DISC_NOISE[2]") || event.GetId() == XRCID("IDM_DISC_NOISE[3]") ||
 		 event.GetId() == XRCID("IDM_DISC_NOISE[4]"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		if (event.GetId() == XRCID("IDM_DISC_NOISE[0]"))
@@ -319,14 +333,14 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	{
 		sound_enable(soundena ^ 1);
 
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(soundena);
 	}
 	else if (event.GetId() == XRCID("IDM_SOUND_STEREO"))
 	{
 		stereo ^= 1;
 
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(stereo);
 	}
 	else if (event.GetId() == XRCID("IDM_SOUND_GAIN[0]") || event.GetId() == XRCID("IDM_SOUND_GAIN[1]") ||
@@ -335,7 +349,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 		 event.GetId() == XRCID("IDM_SOUND_GAIN[6]") || event.GetId() == XRCID("IDM_SOUND_GAIN[7]") ||
 		 event.GetId() == XRCID("IDM_SOUND_GAIN[8]") || event.GetId() == XRCID("IDM_SOUND_GAIN[9]"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		if (event.GetId() == XRCID("IDM_SOUND_GAIN[0]"))
@@ -361,7 +375,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_FILTER_ORIGINAL"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		sound_filter = 0;
@@ -369,7 +383,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_FILTER_REDUCED"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		sound_filter = 1;
@@ -377,7 +391,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_FILTER_MORE_REDUCED"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		sound_filter = 2;
@@ -403,28 +417,28 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_NO_BORDERS"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		arc_set_display_mode(DISPLAY_MODE_NO_BORDERS);
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_NATIVE_BORDERS"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		arc_set_display_mode(DISPLAY_MODE_NATIVE_BORDERS);
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_TV"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		arc_set_display_mode(DISPLAY_MODE_TV);
 	}
 	else if (event.GetId() == XRCID("IDM_DRIVER_AUTO"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		selected_video_renderer = RENDERER_AUTO;
@@ -432,7 +446,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_DRIVER_DIRECT3D"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		selected_video_renderer = RENDERER_DIRECT3D;
@@ -440,7 +454,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_DRIVER_OPENGL"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		selected_video_renderer = RENDERER_OPENGL;
@@ -448,7 +462,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_DRIVER_SOFTWARE"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		selected_video_renderer = RENDERER_SOFTWARE;
@@ -456,7 +470,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_SCALE_NEAREST"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_linear_filtering = 0;
@@ -464,7 +478,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_SCALE_LINEAR"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_linear_filtering = 1;
@@ -475,7 +489,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 		 event.GetId() == XRCID("IDM_VIDEO_SCALE[4]") || event.GetId() == XRCID("IDM_VIDEO_SCALE[5]") ||
 		 event.GetId() == XRCID("IDM_VIDEO_SCALE[6]") || event.GetId() == XRCID("IDM_VIDEO_SCALE[7]"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		if (event.GetId() == XRCID("IDM_VIDEO_SCALE[0]"))
@@ -497,49 +511,65 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_FS_FULL"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_fullscreen_scale = FULLSCR_SCALE_FULL;
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_FS_43"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_fullscreen_scale = FULLSCR_SCALE_43;
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_FS_SQ"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_fullscreen_scale = FULLSCR_SCALE_SQ;
 	}
 	else if (event.GetId() == XRCID("IDM_VIDEO_FS_INT"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		video_fullscreen_scale = FULLSCR_SCALE_INT;
 	}
 	else if (event.GetId() == XRCID("IDM_BLIT_SCAN"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		arc_set_dblscan(0);
 	}
 	else if (event.GetId() == XRCID("IDM_BLIT_SCALE"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 		item->Check(true);
 
 		arc_set_dblscan(1);
 	}
+	else if (event.GetId() == XRCID("IDM_BLACK_ACORN"))
+	{
+		wxMenuItem *item = find_item(event.GetId());
+		item->Check(true);
+
+		video_black_level = BLACK_LEVEL_ACORN;
+		vidc_redopalette();
+	}
+	else if (event.GetId() == XRCID("IDM_BLACK_NORMAL"))
+	{
+		wxMenuItem *item = find_item(event.GetId());
+		item->Check(true);
+
+		video_black_level = BLACK_LEVEL_NORMAL;
+		vidc_redopalette();
+	}
 	else if (event.GetId() == XRCID("IDM_DEBUGGER_ENABLE"))
 	{
-		wxMenuItem *item = ((wxMenu*)menu)->FindItem(event.GetId());
+		wxMenuItem *item = find_item(event.GetId());
 
 		if (!debugon)
 		{
@@ -547,7 +577,7 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 			debugon = 1;
 			debug = 1;
 			debug_start();
-			ShowConsoleWindow(this);
+			ShowConsoleWindow(parent);
 			arc_resume_main_thread();
 		}
 		else
@@ -563,6 +593,11 @@ void Frame::OnMenuCommand(wxCommandEvent &event)
 	{
 		debug = 1;
 	}
+}
+
+void Frame::OnMenuCommand(wxCommandEvent &event)
+{
+	OnMenuCommandCommon(event, this);
 }
 
 extern "C" void arc_stop_emulation()
@@ -588,15 +623,13 @@ extern "C" void *wx_getnativemenu(void *menu)
 
 extern "C" void arc_update_menu()
 {
-	UpdateMenuEvent *event = new UpdateMenuEvent((wxMenu *)main_menu);
+	UpdateMenuEvent *event = new UpdateMenuEvent(); //(wxMenu *)menu);
 	wxQueueEvent((wxWindow *)main_frame, event);
 }
 
 void Frame::OnUpdateMenuEvent(UpdateMenuEvent &event)
 {
-	wxMenu *menu = event.GetMenu();
-
-	UpdateMenu(menu);
+	UpdateMenu();
 }
 
 extern "C" void arc_print_error(const char *format, ...)

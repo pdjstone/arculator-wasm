@@ -4,6 +4,7 @@
 #include "arc.h"
 #include "g332.h"
 #include "plat_video.h"
+#include "video.h"
 #include "vidc.h"
 
 #define G332_REG_BOOT            0x00
@@ -63,11 +64,42 @@ void g332_init(g332_t *g332, uint8_t *ram, int type, void (*irq_callback)(void *
 	g332->irq_callback = irq_callback;
 	g332->callback_p = callback_p;
 	g332->buffer = create_bitmap(2048,2048);
+
+	g332->rgb555_adjusted = malloc(32768 * sizeof(uint32_t *));
+	g332->rgb565_adjusted = malloc(65536 * sizeof(uint32_t *));
+
+	for (int i = 0; i < 32768; i++)
+	{
+		int r = (i >> 10) & 0x1f;
+		int g = (i >> 5) & 0x1f;
+		int b = i & 0x1f;
+
+		r = (MAX(r - 6, 0) * 255) / 25;
+		g = (MAX(g - 6, 0) * 255) / 25;
+		b = (MAX(b - 6, 0) * 255) / 25;
+
+		g332->rgb555_adjusted[i] = (b << 16) | (g << 8) | r;
+	}
+
+	for (int i = 0; i < 65536; i++)
+	{
+		int r = (i >> 11) & 0x1f;
+		int g = (i >> 5) & 0x3f;
+		int b = i & 0x1f;
+
+		r = (MAX(r - 6, 0) * 255) / 25;
+		g = (MAX(g - 12, 0) * 255) / 51;
+		b = (MAX(b - 6, 0) * 255) / 25;
+
+		g332->rgb565_adjusted[i] = (b << 16) | (g << 8) | r;
+	}
 }
 
 void g332_close(g332_t *g332)
 {
 	destroy_bitmap(g332->buffer);
+	free(g332->rgb555_adjusted);
+	free(g332->rgb565_adjusted);
 }
 
 void g332_output_enable(g332_t *g332, int enable)
@@ -75,6 +107,29 @@ void g332_output_enable(g332_t *g332, int enable)
 	g332->output_enable = enable;
 }
 
+
+static uint32_t black_adjusted(uint32_t col)
+{
+	if (video_black_level == BLACK_LEVEL_ACORN)
+	{
+		int r = (MAX((int)(col & 0xff) - 0x33, 0) * 255) / 0xcc;
+		int g = (MAX(((int)(col >> 8) & 0xff) - 0x33, 0) * 255) / 0xcc;
+		int b = (MAX(((int)(col >> 16) & 0xff) - 0x33, 0) * 255) / 0xcc;
+
+		return r | (g << 8) | (b << 16);
+	}
+
+	return col;
+}
+
+void g332_redopalette(g332_t *g332)
+{
+	for (int i = 0; i < 256; i++)
+		g332->disp_palette[i] = black_adjusted(g332->palette[i]);
+
+	for (int i = 1; i < 4; i++)
+		g332->cursor_disp_palette[i] = black_adjusted(g332->cursor_palette[i]);
+}
 
 uint64_t g332_poll(g332_t *g332)
 {
@@ -100,14 +155,14 @@ uint64_t g332_poll(g332_t *g332)
 				{
 					uint8_t data = g332->ram[g332->rp & 0x7ffff];
 
-					*p++ = g332->palette[data & 1];
-					*p++ = g332->palette[(data >> 1) & 1];
-					*p++ = g332->palette[(data >> 2) & 1];
-					*p++ = g332->palette[(data >> 3) & 1];
-					*p++ = g332->palette[(data >> 4) & 1];
-					*p++ = g332->palette[(data >> 5) & 1];
-					*p++ = g332->palette[(data >> 6) & 1];
-					*p++ = g332->palette[(data >> 7) & 1];
+					*p++ = g332->disp_palette[data & 1];
+					*p++ = g332->disp_palette[(data >> 1) & 1];
+					*p++ = g332->disp_palette[(data >> 2) & 1];
+					*p++ = g332->disp_palette[(data >> 3) & 1];
+					*p++ = g332->disp_palette[(data >> 4) & 1];
+					*p++ = g332->disp_palette[(data >> 5) & 1];
+					*p++ = g332->disp_palette[(data >> 6) & 1];
+					*p++ = g332->disp_palette[(data >> 7) & 1];
 
 					g332->rp++;
 				}
@@ -119,10 +174,10 @@ uint64_t g332_poll(g332_t *g332)
 				{
 					uint8_t data = g332->ram[g332->rp & 0x7ffff];
 
-					*p++ = g332->palette[data & 3];
-					*p++ = g332->palette[(data >> 2) & 3];
-					*p++ = g332->palette[(data >> 4) & 3];
-					*p++ = g332->palette[(data >> 6) & 3];
+					*p++ = g332->disp_palette[data & 3];
+					*p++ = g332->disp_palette[(data >> 2) & 3];
+					*p++ = g332->disp_palette[(data >> 4) & 3];
+					*p++ = g332->disp_palette[(data >> 6) & 3];
 
 					g332->rp++;
 				}
@@ -134,8 +189,8 @@ uint64_t g332_poll(g332_t *g332)
 				{
 					uint8_t data = g332->ram[g332->rp & 0x7ffff];
 
-					*p++ = g332->palette[data & 0xf];
-					*p++ = g332->palette[data >> 4];
+					*p++ = g332->disp_palette[data & 0xf];
+					*p++ = g332->disp_palette[data >> 4];
 
 					g332->rp++;
 				}
@@ -147,7 +202,7 @@ uint64_t g332_poll(g332_t *g332)
 				{
 					uint8_t data = g332->ram[g332->rp & 0x7ffff];
 
-					*p++ = g332->palette[data];
+					*p++ = g332->disp_palette[data];
 
 					g332->rp++;
 				}
@@ -158,9 +213,11 @@ uint64_t g332_poll(g332_t *g332)
 				for (x = 0; x < ((g332->type == INMOS_G332) ? g332->h_display : (g332->h_display/2)); x++)
 				{
 					uint16_t data = *(uint16_t *)&g332->ram[g332->rp & 0x7ffff];
-					uint32_t data_32 = ((data & 0x1f) << 19) | ((data & 0x3e0) << 6) | ((data & 0x7c00) >> 7);
 
-					*p++ = data_32;
+					if (video_black_level == BLACK_LEVEL_ACORN)
+						*p++ = g332->rgb555_adjusted[data & 0x7fff];
+					else
+						*p++ = ((data & 0x1f) << 19) | ((data & 0x3e0) << 6) | ((data & 0x7c00) >> 7);
 
 					g332->rp += 2;
 				}
@@ -171,9 +228,11 @@ uint64_t g332_poll(g332_t *g332)
 				for (x = 0; x < ((g332->type == INMOS_G332) ? g332->h_display : (g332->h_display/2)); x++)
 				{
 					uint16_t data = *(uint16_t *)&g332->ram[g332->rp & 0x7ffff];
-					uint32_t data_32 = ((data & 0x1f) << 19) | ((data & 0x7e0) << 5) | ((data & 0xf800) >> 8);
 
-					*p++ = data_32;
+					if (video_black_level == BLACK_LEVEL_ACORN)
+						*p++ = g332->rgb565_adjusted[data];
+					else
+						*p++ = ((data & 0x1f) << 19) | ((data & 0x7e0) << 5) | ((data & 0xf800) >> 8);
 
 					g332->rp += 2;
 				}
@@ -204,7 +263,7 @@ uint64_t g332_poll(g332_t *g332)
 				while (cursor_row < 64)
 				{
 					if (cursor_data & 3)
-						*p = g332->cursor_palette[cursor_data & 3];
+						*p = g332->cursor_disp_palette[cursor_data & 3];
 					p++;
 					cursor_data >>= 2;
 					cursor_row++;
@@ -386,14 +445,17 @@ void g332_write(g332_t *g332, uint32_t addr, uint32_t val)
 
 			case G332_CURSOR_PALETTE_1:
 			g332->cursor_palette[1] = ((val & 0xff) << 16) | (val & 0x00ff00) | ((val & 0xff0000) >> 16);
+			g332->cursor_disp_palette[1] = black_adjusted(g332->cursor_palette[1]);
 //                        rpclog("cursor_palette[1]=%06x %06x\n", g332->cursor_palette[1], val);
 			break;
 			case G332_CURSOR_PALETTE_2:
 			g332->cursor_palette[2] = ((val & 0xff) << 16) | (val & 0x00ff00) | ((val & 0xff0000) >> 16);
+			g332->cursor_disp_palette[2] = black_adjusted(g332->cursor_palette[2]);
 //                        rpclog("cursor_palette[2]=%06x %06x\n", g332->cursor_palette[2], val);
 			break;
 			case G332_CURSOR_PALETTE_3:
 			g332->cursor_palette[3] = ((val & 0xff) << 16) | (val & 0x00ff00) | ((val & 0xff0000) >> 16);
+			g332->cursor_disp_palette[3] = black_adjusted(g332->cursor_palette[3]);
 //                        rpclog("cursor_palette[3]=%06x %06x\n", g332->cursor_palette[3], val);
 			break;
 
@@ -408,7 +470,7 @@ void g332_write(g332_t *g332, uint32_t addr, uint32_t val)
 	else if (addr >= 0x100 && addr < 0x200)
 	{
 		g332->palette[addr & 0xff] = ((val & 0xff) << 16) | (val & 0x00ff00) | ((val & 0xff0000) >> 16);
-//                rpclog("palette[%02x]=%06x\n", addr & 0xff, val);
+		g332->disp_palette[addr & 0xff] = black_adjusted(g332->palette[addr & 0xff]);
 	}
 	else if (addr >= 0x200 && addr < 0x400)
 		g332->cursor_store[addr & 0x1ff] = val & 0xffff;

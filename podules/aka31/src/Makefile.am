@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aka31.dll
-../aka31.dll: libaka31.la
-	cp .libs/libaka31-0.dll ../aka31.dll
+noinst_SCRIPTS += ../aka31$(SO_EXT)
+../aka31$(SO_EXT): libaka31.la
+	cp .libs/libaka31-0$(SO_EXT) ../aka31$(SO_EXT)
 libaka31_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aka31.so
-../aka31.so: libaka31.la
-	cp .libs/libaka31.so ../aka31.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../aka31.dylib
-../aka31.dylib: libaka31.la
-	cp .libs/libaka31.dylib ../aka31.dylib
+noinst_SCRIPTS += ../aka31$(SO_EXT)
+../aka31$(SO_EXT): libaka31.la
+	cp .libs/libaka31$(SO_EXT) ../aka31$(SO_EXT)
 endif
 
 amrefresh:

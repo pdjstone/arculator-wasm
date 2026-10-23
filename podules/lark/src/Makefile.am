@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../lark.dll
-../lark.dll: liblark.la
-	cp .libs/liblark-0.dll ../lark.dll
+noinst_SCRIPTS += ../lark$(SO_EXT)
+../lark$(SO_EXT): liblark.la
+	cp .libs/liblark-0$(SO_EXT) ../lark$(SO_EXT)
 liblark_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../lark.so
-../lark.so: liblark.la
-	cp .libs/liblark.so ../lark.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../lark.dylib
-../lark.dylib: liblark.la
-	cp .libs/liblark.dylib ../lark.dylib
+noinst_SCRIPTS += ../lark$(SO_EXT)
+../lark$(SO_EXT): liblark.la
+	cp .libs/liblark$(SO_EXT) ../lark$(SO_EXT)
 endif
 
 amrefresh:

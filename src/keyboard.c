@@ -91,12 +91,14 @@ void keyboard_send_double(uint8_t val1, uint8_t val2)
 
 void key_do_rx_callback(void *p)
 {
+	(void)p;
 	LOG_KB_MOUSE("RX interrupt\n");
 	ioc_irqb(IOC_IRQB_KEYBOARD_RX);
 }
 
 void key_do_tx_callback(void *p)
 {
+	(void)p;
 	LOG_KB_MOUSE("TX interrupt\n");
 	ioc_irqb(IOC_IRQB_KEYBOARD_TX);
 }

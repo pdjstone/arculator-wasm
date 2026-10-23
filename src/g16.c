@@ -52,6 +52,7 @@ typedef struct g16_t
 
 static void g16_data_callback(uint8_t *data, int pixels, int hsync_length, int resolution, void *p);
 static void g16_vsync_callback(void *p, int state);
+static void g16_redopalette_callback(void *p);
 static void g16_irq_callback(void *p, int state);
 
 static int g16_init(struct podule_t *podule)
@@ -81,7 +82,7 @@ static int g16_init(struct podule_t *podule)
 	g16->podule = podule;
 
 	g332_init(&g16->g332, g16->ram, INMOS_G332, g16_irq_callback, g16);
-	vidc_attach(g16_data_callback, g16_vsync_callback, g16);
+	vidc_attach(g16_data_callback, g16_vsync_callback, g16_redopalette_callback, g16);
 
 	monitor_connection = podule_callbacks->config_get_string(podule, "monitor_connection", "arc");
 	if (!strcmp(monitor_connection, "podule"))
@@ -137,6 +138,13 @@ static void g16_vsync_callback(void *p, int state)
 
 	if (state)
 		g16->wp = 0;
+}
+
+static void g16_redopalette_callback(void *p)
+{
+	g16_t *g16 = (g16_t *)p;
+
+	g332_redopalette(&g16->g332);
 }
 
 static void g16_irq_callback(void *p, int state)

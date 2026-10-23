@@ -13,7 +13,7 @@ typedef struct
 
 struct net_t;
 
-typedef struct
+typedef struct net_t
 {
 	void (*close)(struct net_t *net);
 	int (*read)(struct net_t *net, packet_t *packet);

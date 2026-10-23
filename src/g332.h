@@ -28,8 +28,13 @@ typedef struct g332_t
 	uint32_t rp;
 
 	uint32_t palette[256];
+	uint32_t disp_palette[256];
 	uint32_t cursor_palette[4];
+	uint32_t cursor_disp_palette[4];
 	uint16_t cursor_store[512];
+
+	uint32_t *rgb555_adjusted;
+	uint32_t *rgb565_adjusted;
 
 	BITMAP *buffer;
 
@@ -49,3 +54,4 @@ void g332_close(g332_t *g332);
 void g332_write(g332_t *g332, uint32_t addr, uint32_t val);
 void g332_output_enable(g332_t *g332, int enable);
 uint64_t g332_poll(g332_t *g332);
+void g332_redopalette(g332_t *g332);

@@ -202,7 +202,7 @@ struct	ip_timestamp {
 struct mbuf_ptr {
 	union
 	{
-		struct mbuf *mptr;
+		struct SLIRPmbuf *mptr;
 		uint64_t dummy;
 	} m;
 };

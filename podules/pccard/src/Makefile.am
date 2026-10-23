@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../pccard.dll
-../pccard.dll: libpccard.la
-	cp .libs/libpccard-0.dll ../pccard.dll
+noinst_SCRIPTS += ../pccard$(SO_EXT)
+../pccard$(SO_EXT): libpccard.la
+	cp .libs/libpccard-0$(SO_EXT) ../pccard$(SO_EXT)
 libpccard_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../pccard.so
-../pccard.so: libpccard.la
-	cp .libs/libpccard.so ../pccard.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../pccard.dylib
-../pccard.dylib: libpccard.la
-	cp .libs/libpccard.dylib ../pccard.dylib
+noinst_SCRIPTS += ../pccard$(SO_EXT)
+../pccard$(SO_EXT): libpccard.la
+	cp .libs/libpccard$(SO_EXT) ../pccard$(SO_EXT)
 endif
 
 amrefresh:	

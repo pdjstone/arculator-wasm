@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../designit_e200.dll
-../designit_e200.dll: libdesignit_e200.la
-	cp .libs/libdesignit_e200-0.dll ../designit_e200.dll
+noinst_SCRIPTS += ../designit_e200$(SO_EXT)
+../designit_e200$(SO_EXT): libdesignit_e200.la
+	cp .libs/libdesignit_e200-0$(SO_EXT) ../designit_e200$(SO_EXT)
 libdesignit_e200_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../designit_e200.so
-../designit_e200.so: libdesignit_e200.la
-	cp .libs/libdesignit_e200.so ../designit_e200.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../designit_e200.dylib
-../designit_e200.dylib: libdesignit_e200.la
-	cp .libs/libdesignit_e200.dylib ../designit_e200.dylib
+noinst_SCRIPTS += ../designit_e200$(SO_EXT)
+../designit_e200$(SO_EXT): libdesignit_e200.la
+	cp .libs/libdesignit_e200$(SO_EXT) ../designit_e200$(SO_EXT)
 endif
 
 amrefresh:	

@@ -1,6 +1,9 @@
 /*Arculator 2.2 by Sarah Walker
   Main header file*/
 
+#ifndef __ARC_H__
+#define __ARC_H__
+
 //#define printf rpclog
 
 #define VERSION_STRING "v2.2"
@@ -8,6 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 
 #define ignore_result(r) if ((r)) {  };
 #include "debugger.h"
@@ -261,3 +265,5 @@ void arc_stop_emulation();
 void arc_popup_menu();
 void arc_update_menu();
 void *wx_getnativemenu(void *menu);
+
+#endif /* __ARC_H__ */

@@ -16,3 +16,4 @@ roms/
 */roms.txt
 /build/
 src/arculatorweb
+.vscode

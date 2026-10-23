@@ -60,6 +60,7 @@ typedef struct colourcard_t
 
 static void colourcard_data_callback(uint8_t *data, int pixels, int hsync_length, int resolution, void *p);
 static void colourcard_vsync_callback(void *p, int state);
+static void colourcard_redopalette_callback(void *p);
 static void colourcard_irq_callback(void *p, int state);
 
 static int colourcard_init(struct podule_t *podule)
@@ -88,7 +89,7 @@ static int colourcard_init(struct podule_t *podule)
 	colourcard->podule = podule;
 
 	g332_init(&colourcard->g332, colourcard->ram, INMOS_G335, colourcard_irq_callback, colourcard);
-	vidc_attach(colourcard_data_callback, colourcard_vsync_callback, colourcard);
+	vidc_attach(colourcard_data_callback, colourcard_vsync_callback, colourcard_redopalette_callback, colourcard);
 
 	return 0;
 }
@@ -128,6 +129,13 @@ static void colourcard_vsync_callback(void *p, int state)
 
 	if (state)
 		colourcard->wp = 0;
+}
+
+static void colourcard_redopalette_callback(void *p)
+{
+	colourcard_t *colourcard = (colourcard_t *)p;
+
+	g332_redopalette(&colourcard->g332);
 }
 
 static void colourcard_irq_callback(void *p, int state)

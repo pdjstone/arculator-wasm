@@ -8,6 +8,7 @@
 #include "config.h"
 #include "g16.h"
 #include "ide_a3in.h"
+#include "ide_hccs_a3k.h"
 #include "ide_idea.h"
 #include "ide_riscdev.h"
 #include "ide_zidefs.h"
@@ -42,7 +43,8 @@ static const podule_header_t *(*internal_podules[])(const podule_callbacks_t *ca
 
 	/*8-bit minipodules*/
 	ics_a3inv5_ide_probe,
-	zidefs_a3k_ide_probe
+	zidefs_a3k_ide_probe,
+	hccs_a3k_ide_probe
 };
 
 #define NR_INTERNAL_PODULES (sizeof(internal_podules) / sizeof(internal_podules[0]))
@@ -116,42 +118,51 @@ const char *podule_get_name(int c)
 {
 	podule_list *current = podule_list_head;
 
+	if (c < 0)
+		return NULL;
+
 	while (c--)
 	{
-		current = current->next;
 		if (!current)
 			return NULL;
+		current = current->next;
 	}
 
-	return current->header->name;
+	return current ? current->header->name : NULL;
 }
 
 const char *podule_get_short_name(int c)
 {
 	podule_list *current = podule_list_head;
 
+	if (c < 0)
+		return NULL;
+
 	while (c--)
 	{
-		current = current->next;
 		if (!current)
 			return NULL;
+		current = current->next;
 	}
 
-	return current->header->short_name;
+	return current ? current->header->short_name : NULL;
 }
 
 uint32_t podule_get_flags(int c)
 {
 	podule_list *current = podule_list_head;
 
+	if (c < 0)
+		return 0;
+
 	while (c--)
 	{
-		current = current->next;
 		if (!current)
 			return 0;
+		current = current->next;
 	}
 
-	return current->header->flags;
+	return current ? current->header->flags : 0;
 }
 
 const podule_header_t *podule_find(const char *short_name)

@@ -5,6 +5,8 @@ BUILD_TAG := $(shell echo `git rev-parse --short HEAD`-`[[ -n $$(git status -s) 
 
 CC             := gcc
 CFLAGS         := -D_REENTRANT -Wall -Werror -DBUILD_TAG="${BUILD_TAG}"
+# podules-unix.c looks for external podules as <name>/<name>$(SO_EXT)
+CFLAGS         += -DSO_EXT='".so"'
 CFLAGS_WASM    := -sUSE_ZLIB=1
 LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
@@ -33,12 +35,12 @@ OBJS := 82c711 82c711_fdc \
 	disc disc_adf disc_mfm_common disc_hfe \
 	ds2401 eterna fdi2raw fpa g16 g332 \
 	hostfs ide ide_a3in ide_config ide_idea jscli \
-	ide_riscdev ide_zidefs ide_zidefs_a3k \
+	ide_riscdev ide_zidefs ide_zidefs_a3k ide_hccs_a3k \
 	input_emscripten ioc ioeb joystick keyboard \
 	lc main mem memc podules printer \
 	riscdev_hdfc romload sound_emscripten \
 	st506 st506_akd52 timer vidc video_emscripten wd1770 \
-	joystick_emscripten hostfs-unix podules-linux \
+	joystick_emscripten hostfs-unix podules-unix \
 	emscripten_main emscripten-console hostfs_emscripten
 # The wasm build does its sound filtering and resampling in an AudioWorklet
 OBJS_NATIVE := $(addprefix build/native/,$(addsuffix .o,${OBJS} sound))

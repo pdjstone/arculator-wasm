@@ -101,7 +101,7 @@ void lc_init(void)
 	lc.licr = 0;
 	if (!lc.lc_buffer)
 		lc.lc_buffer = create_bitmap(640, 480);
-	vidc_attach(lc_vidc_data, lc_vidc_vsync, NULL);
+	vidc_attach(lc_vidc_data, lc_vidc_vsync, NULL, NULL);
 
 	if (monitor_type == MONITOR_LCD)
 	{

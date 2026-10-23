@@ -1,4 +1,4 @@
-void *ne2000_init();
+void *ne2000_init(void (*set_irq)(void *p, int state), void *p, net_t *net);
 void ne2000_close(void *p);
 void ne2000_do_reset(void *p);
 uint8_t ne2000_read(uint16_t address, void *p);

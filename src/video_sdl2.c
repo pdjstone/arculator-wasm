@@ -1,6 +1,6 @@
 /*Arculator 2.2 by Sarah Walker
   SDL2 video handling*/
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
 #if WIN32
 #define BITMAP __win_bitmap
@@ -23,7 +23,7 @@
 
 static SDL_Texture *texture = NULL;
 static SDL_Renderer *renderer = NULL;
-SDL_Window *sdl_main_window = NULL;
+void *sdl_main_window = NULL;
 static SDL_Rect texture_rect;
 
 int selected_video_renderer;
@@ -91,7 +91,7 @@ static int video_renderer_create(void *main_window)
 	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, video_linear_filtering ? "1" : "0");
 
 	rpclog("create SDL renderer\n");
-	renderer = SDL_CreateRenderer(sdl_main_window, -1, SDL_RENDERER_ACCELERATED);
+	renderer = SDL_CreateRenderer((SDL_Window *)sdl_main_window, -1, SDL_RENDERER_ACCELERATED);
 
 	if (!renderer)
 	{

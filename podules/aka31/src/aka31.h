@@ -12,9 +12,9 @@
 void aka31_log(const char *format, ...);
 void fatal(const char *format, ...);
 
-void aka31_sbic_int();
-void aka31_sbic_int_clear();
-void aka31_tc_int();
+void aka31_sbic_int(podule_t *podule);
+void aka31_sbic_int_clear(podule_t *podule);
+void aka31_tc_int(podule_t *podule);
 
 void aka31_write_ram(podule_t *podule, uint16_t addr, uint8_t val);
 uint8_t aka31_read_ram(podule_t *podule, uint16_t addr);

@@ -58,7 +58,7 @@ void opendlls(void)
 		dll_t *dll = malloc(sizeof(dll_t));
 		memset(dll, 0, sizeof(dll_t));
 
-		sprintf(dll_name, "/%s.dll", finddata.name);
+		sprintf(dll_name, "/%s%s", finddata.name, SO_EXT);
 		append_filename(fn, podule_path, finddata.name, sizeof(fn));
 		append_filename(fn, fn, dll_name, sizeof(fn));
 		rpclog("Loading %s %s\n", finddata.name, fn);

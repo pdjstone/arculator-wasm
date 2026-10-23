@@ -38,6 +38,7 @@ int display_mode;
 int video_scale;
 int video_fullscreen_scale;
 int video_linear_filtering;
+int video_black_level;
 
 static uint32_t vidcr[64];
 
@@ -165,7 +166,12 @@ struct
 
 	void (*data_callback)(uint8_t *data, int pixels, int hsync_length, int resolution, void *p);
 	void (*vsync_callback)(void *p, int state);
+	void (*redopalette_callback)(void *p);
 	void *callback_p;
+
+	int interlace_enable;
+	int interlace_line_pending;
+	int oddeven;
 } vidc;
 
 enum
@@ -342,11 +348,72 @@ void recalcse()
 		vidc.hsync_length, vidc.front_porch_length, vidc.display_length, vidc.back_porch_length);*/
 }
 
+static uint32_t vidc_make_colour(RGB r)
+{
+	if (video_black_level == BLACK_LEVEL_ACORN && vidc.output_enable)
+	{
+		r.r = (MAX(r.r - 3, 0) * 255) / 12;
+		r.g = (MAX(r.g - 3, 0) * 255) / 12;
+		r.b = (MAX(r.b - 3, 0) * 255) / 12;
+	}
+	else
+	{
+		r.r |= r.r << 4;
+		r.g |= r.g << 4;
+		r.b |= r.b << 4;
+	}
+
+	return makecol(r.r, r.g, r.b);
+}
+
+void vidc_redopalette(void)
+{
+	for (int i = 0; i < 20; i++)
+	{
+		uint32_t v = vidcr[i];
+		RGB r =
+		{
+			.b = (v & 0xf00) >> 8,
+			.g = (v & 0xf0) >> 4,
+			.r = v & 0xf
+		};
+
+		vidc.pal[i] = vidc_make_colour(r);
+	}
+
+	for (int i = 0; i < 256; i++)
+	{
+		uint32_t v = vidcr[i & 0xf];
+		RGB r =
+		{
+			.b = (v & 0x700) >> 8,
+			.g = (v & 0x30) >> 4,
+			.r = v & 0x7
+		};
+
+		if (i & 0x10)
+			r.r |= 8;
+		if (i & 0x20)
+			r.g |= 4;
+		if (i & 0x40)
+			r.g |= 8;
+		if (i & 0x80)
+			r.b |= 8;
+
+		vidc.pal8[i] = vidc_make_colour(r);
+	}
+
+	palchange = 1;
+
+	if (vidc.redopalette_callback)
+		vidc.redopalette_callback(vidc.callback_p);
+}
+
 void writevidc(uint32_t v)
 {
 //        char s[80];
-	RGB r;
-	int c,d;
+	RGB r __attribute__((unused));
+	int c __attribute__((unused)), d __attribute__((unused));
 	LOG_VIDC_REGISTERS("Write VIDC %08X (addr %02X<<2 or %02X/%02X, data %06X) with R15=%08X (PC=%08X)\n",
 		v, v>>26, v>>24, (v>>24) & 0xFC, v & 0xFFFFFFul, armregs[15], PC);
 	if (((v>>24)&~0x1F)==0x60)
@@ -377,26 +444,8 @@ void writevidc(uint32_t v)
 			case 15: v = 0x3C000737; break;
 		}*/
 		vidcr[v >> 26] = v & 0x1fff;
-		r.b=(v&0xF00)>>6;
-		r.g=(v&0xF0)>>2;
-		r.r=(v&0xF)<<2;
-		c=vidc.pal[(v>>26)&0x1F];
-		vidc.pal[(v >> 26) & 0x1F] = makecol((r.r<<2)|(r.r>>2), (r.g<<2)|(r.g>>2), (r.b<<2)|(r.b>>2)) | ((v & 0x1000) << 12);
 		LOG_VIDC_REGISTERS("VIDC Write pal %08X %08X %08X\n",c,vidc.pal[(v>>26)&0x1F],v);
-		d=v>>26;
-		palchange=1;
-		for (c=d;c<0x100+d;c+=16)
-		{
-			r.r=vidcr[d&15]&0xF;
-			r.g=(vidcr[d&15]&0xF0)>>4;
-			r.b=(vidcr[d&15]&0xF00)>>8;
-			if (c&0x10) r.r|=8; else r.r&=~8;
-			if (c&0x20) r.g|=4; else r.g&=~4;
-			if (c&0x40) r.g|=8; else r.g&=~8;
-			if (c&0x80) r.b|=8; else r.b&=~8;
-			if (c < 0x100)
-				vidc.pal8[c] = makecol((r.r<<4)|r.r, (r.g<<4)|r.g, (r.b<<4)|r.b) | ((v & 0x1000) << 12);
-		}
+		vidc_redopalette();
 		return;
 	}
 	vidcr[v>>26]=v;
@@ -495,6 +544,7 @@ void writevidc(uint32_t v)
 	if ((v>>24)==0xE0)
 	{
 		vidc.cr = v & 0x00c1ff;
+		vidc.interlace_enable = v & 0x40;
 		recalcse();
 		vidc_redovideotiming();
 		LOG_VIDC_REGISTERS("VIDC write ctrl %08X\n", vidc.cr);
@@ -606,10 +656,12 @@ static void vidc_poll(void *__p)
 		vidc.state = VIDC_HSYNC;
 
 		/*Clock vertical count*/
-		if (vidc.line == vidc.vsync)
+		if (vidc.line == vidc.vsync && !vidc.interlace_line_pending)
 		{
 			if (vidc.vsync_callback)
 				vidc.vsync_callback(vidc.callback_p, 0);
+			if (vidc.interlace_enable && vidc.oddeven)
+				vidc.interlace_line_pending = 2;
 		}
 		if (vidc.line == vidc.vbstart && !vidc.border_was_disabled)
 		{
@@ -668,7 +720,10 @@ static void vidc_poll(void *__p)
 			memc_dma_cursor_req = 1;
 			vidc.cursor_lines = 2;
 		}
-		vidc.line++;
+		if (vidc.interlace_line_pending)
+			vidc.interlace_line_pending--;
+		if (!vidc.interlace_line_pending)
+			vidc.line++;
 		LOG_VIDC_TIMING("++ vidc.line == %d\n", vidc.line);
 
 		timer_advance_u64(&vidc.timer, vidc.hsync_length * vidc.pixel_time);
@@ -692,7 +747,12 @@ static void vidc_poll(void *__p)
 	if (l>=0 && vidc.line<=1023 && l<1536)
 	{
 		int htot = (vidc.htot+1)*2;
-		bp = (uint8_t *)buffer->line[l];
+
+		if (vidc.interlace_enable)
+			bp = (uint8_t *)buffer->line[l*2 + (vidc.oddeven ? 1 : 0)];
+		else
+			bp = (uint8_t *)buffer->line[l];
+
 		if (!memc_videodma_enable)
 		{
 			if (vidc.borderon)
@@ -1094,12 +1154,12 @@ static void vidc_poll(void *__p)
 		}
 	}
 	else if (display_mode == DISPLAY_MODE_TV && l >= TV_Y_MIN && l < TV_Y_MAX)
-		archline(buffer->line[l], TV_X_MIN, l, TV_X_MAX-1, 0);
+		archline(buffer->line[vidc.interlace_enable ? (l*2 + (vidc.oddeven ? 1 : 0)): l], TV_X_MIN, l, TV_X_MAX-1, 0);
 	else
 	{
 		int htot = (vidc.htot+1)*2;
 
-		archline(buffer->line[l], 0, l, htot, 0);
+		archline(buffer->line[vidc.interlace_enable ? (l*2 + (vidc.oddeven ? 1 : 0)): l], 0, vidc.interlace_enable ? (l*2 + (vidc.oddeven ? 1 : 0)): l, htot, 0);
 	}
 	if (vidc.data_callback)
 	{
@@ -1161,7 +1221,14 @@ static void vidc_poll(void *__p)
 					hd_end *= 2;
 				}
 
-				if (vidc.scanrate || !dblscan)
+				if (vidc.interlace_enable)
+				{
+					LOG_VIDEO_FRAMES("PRESENT: normal display\n");
+					updatewindowsize(hd_end-hd_start, height * 2);
+					video_renderer_update(buffer, hd_start, vidc.disp_y_min * 2, 0, 0, hd_end-hd_start, height * 2);
+					video_renderer_present(0, 0, hd_end-hd_start, height * 2, 0);
+				}
+				else if (vidc.scanrate || !dblscan)
 				{
 					LOG_VIDEO_FRAMES("PRESENT: normal display\n");
 					update_screen_geometry(0, 0, hd_end-hd_start, height);
@@ -1198,7 +1265,14 @@ static void vidc_poll(void *__p)
 					hb_width *= 2;
 				}
 
-				if (vidc.scanrate || !dblscan)
+				if (vidc.interlace_enable)
+				{
+					LOG_VIDEO_FRAMES("UPDATE AND PRESENT: fullborders|fullscreen no doubling\n");
+					updatewindowsize(hb_end-hb_start, (vidc.y_max-vidc.y_min) * 2);
+					video_renderer_update(buffer, hb_start, vidc.y_min*2, 0, 0, hb_end-hb_start, (vidc.y_max-vidc.y_min)*2);
+					video_renderer_present(0, 0, hb_end-hb_start, (vidc.y_max-vidc.y_min)*2, 0);
+				}
+				else if (vidc.scanrate || !dblscan)
 				{
 					LOG_VIDEO_FRAMES("UPDATE AND PRESENT: fullborders|fullscreen no doubling\n");
 					update_screen_geometry(hb_width, vb_height, disp_width, disp_height);
@@ -1221,7 +1295,7 @@ static void vidc_poll(void *__p)
 				updatewindowsize(TV_X_MAX-TV_X_MIN, (TV_Y_MAX-TV_Y_MIN)*2);
 				if (vidcr[VIDC_CR] & 1)
 				{
-					if (dblscan)
+					if (dblscan && !vidc.interlace_enable)
 					{
 						video_renderer_update(buffer, TV_X_MIN_24, TV_Y_MIN, 0, 0, TV_X_MAX_24-TV_X_MIN_24, TV_Y_MAX-TV_Y_MIN);
 						video_renderer_present(0, 0, TV_X_MAX_24-TV_X_MIN_24, TV_Y_MAX-TV_Y_MIN, 1);
@@ -1234,7 +1308,7 @@ static void vidc_poll(void *__p)
 				}
 				else
 				{
-					if (dblscan)
+					if (dblscan && !vidc.interlace_enable)
 					{
 						video_renderer_update(buffer, TV_X_MIN, TV_Y_MIN, 0, 0, TV_X_MAX-TV_X_MIN, TV_Y_MAX-TV_Y_MIN);
 						video_renderer_present(0, 0, TV_X_MAX-TV_X_MIN, TV_Y_MAX-TV_Y_MIN, 1);
@@ -1269,6 +1343,7 @@ static void vidc_poll(void *__p)
 //                rpclog("%i fetches\n", vidc_fetches);
 		vidc_fetches = 0;
 		vidc_framecount++;
+		vidc.oddeven = !vidc.oddeven;
 
 /*                rpclog("htot=%i hswr=%i hbsr=%i hdsr=%i hder=%i hber=%i\n",
 				vidc.htot, vidc.sync, vidc.hbstart, vidc.hdstart, vidc.hdend, vidc.hbend);
@@ -1331,16 +1406,21 @@ void vidc_reset()
 }
 
 
-void vidc_attach(void (*vidc_data)(uint8_t *data, int pixels, int hsync_length, int resolution, void *p), void (*vidc_vsync)(void *p, int state), void *p)
+void vidc_attach(void (*vidc_data)(uint8_t *data, int pixels, int hsync_length, int resolution, void *p),
+		 void (*vidc_vsync)(void *p, int state),
+		 void (*vidc_redopalette)(void *p),
+		 void *p)
 {
 	vidc.data_callback = vidc_data;
 	vidc.vsync_callback = vidc_vsync;
+	vidc.redopalette_callback = vidc_redopalette;
 	vidc.callback_p = p;
 }
 
 void vidc_output_enable(int ena)
 {
 	vidc.output_enable = ena;
+	vidc_redopalette();
 }
 
 uint32_t vidc_get_current_vaddr(void)

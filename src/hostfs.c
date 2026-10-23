@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "arc.h"
 #include "config.h"
@@ -56,7 +57,7 @@
 #endif
 
 #ifndef __EMSCRIPTEN__
-typedef int bool;
+/* typedef int bool; */
 
 #define true  ((bool) 1)
 #define false ((bool) 0)

@@ -10,22 +10,15 @@ CLEANFILES =
 
 if OS_WINDOWS
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../ultimatecdrom.dll
-../ultimatecdrom.dll: libultimatecdrom.la
-	cp .libs/libultimatecdrom-0.dll ../ultimatecdrom.dll
+noinst_SCRIPTS += ../ultimatecdrom$(SO_EXT)
+../ultimatecdrom$(SO_EXT): libultimatecdrom.la
+	cp .libs/libultimatecdrom-0$(SO_EXT) ../ultimatecdrom$(SO_EXT)
 libultimatecdrom_la_LDFLAGS = -no-undefined
-endif
-if OS_LINUX
+else
 CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../ultimatecdrom.so
-../ultimatecdrom.so: libultimatecdrom.la
-	cp .libs/libultimatecdrom.so ../ultimatecdrom.so
-endif
-if OS_MACOSX
-CLEANFILES += $(noinst_SCRIPTS)
-noinst_SCRIPTS += ../ultimatecdrom.dylib
-../ultimatecdrom.dylib: libultimatecdrom.la
-	cp .libs/libultimatecdrom.dylib ../ultimatecdrom.dylib
+noinst_SCRIPTS += ../ultimatecdrom$(SO_EXT)
+../ultimatecdrom$(SO_EXT): libultimatecdrom.la
+	cp .libs/libultimatecdrom$(SO_EXT) ../ultimatecdrom$(SO_EXT)
 endif
 
 amrefresh:

@@ -28,7 +28,7 @@ typedef struct midi_t
 
 static int midi_id;
 
-void midi_close();
+void midi_close(void *);
 
 #define MAX_MIDI_DEVICES 50
 static struct

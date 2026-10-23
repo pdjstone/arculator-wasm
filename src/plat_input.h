@@ -1,3 +1,6 @@
+#ifndef _PLAT_INPUT_H_
+#define _PLAT_INPUT_H_
+
 void input_init();
 void input_close();
 
@@ -9,6 +12,8 @@ void mouse_capture_enable();
 void mouse_capture_disable();
 void notify_mouse_lock_required(int needed);
 
+void get_mouse_deltas(int *x, int *y, int *b);
+
 void keyboard_poll_host();
 extern int key[512];
 
@@ -17,3 +22,5 @@ extern int key[512];
 #else
 #include "keyboard_emscripten.h"
 #endif
+
+#endif /*_PLAT_INPUT_H_*/

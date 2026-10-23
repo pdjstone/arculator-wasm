@@ -57,8 +57,9 @@ static void wd1770_spinup()
 //        rpclog("fdc_ready %i on drive %i (%i)\n", fdc_ready, curdrive, disc_empty(curdrive));
 }
 
-static void wd1770_spindown()
+static void wd1770_spindown(void *p)
 {
+	(void)p;
 	rpclog("WD1770_spindown\n");
 	wd1770.status &= ~0x80;
 /*        motoron = 0;
@@ -175,7 +176,7 @@ void wd1770_write(uint16_t addr, uint8_t val)
 			timer_disable(&wd1770.timer);
 			ioc_fiq(IOC_FIQ_DISC_IRQ);
 			wd1770.status = 0x90;
-			wd1770_spindown();
+			wd1770_spindown(NULL);
 			break;
 /*                        rpclog("Bad 1770 command %02X\n", val);
 			dumpregs();
@@ -341,7 +342,7 @@ static void wd1770_notfound(void *p)
 	timer_disable(&wd1770.timer);
 	ioc_fiq(IOC_FIQ_DISC_IRQ);
 	wd1770.status = 0x90;
-	wd1770_spindown();
+	wd1770_spindown(NULL);
 }
 
 static void wd1770_datacrcerror(void *p)
@@ -350,7 +351,7 @@ static void wd1770_datacrcerror(void *p)
 	timer_disable(&wd1770.timer);
 	ioc_fiq(IOC_FIQ_DISC_IRQ);
 	wd1770.status = 0x88;
-	wd1770_spindown();
+	wd1770_spindown(NULL);
 }
 
 static void wd1770_headercrcerror(void *p)
@@ -359,7 +360,7 @@ static void wd1770_headercrcerror(void *p)
 	timer_disable(&wd1770.timer);
 	ioc_fiq(IOC_FIQ_DISC_IRQ);
 	wd1770.status = 0x98;
-	wd1770_spindown();
+	wd1770_spindown(NULL);
 }
 
 static int wd1770_getdata(int last, void *p)
@@ -380,7 +381,7 @@ static void wd1770_writeprotect(void *p)
 	timer_disable(&wd1770.timer);
 	ioc_fiq(IOC_FIQ_DISC_IRQ);
 	wd1770.status = 0xC0;
-	wd1770_spindown();
+	wd1770_spindown(NULL);
 }
 
 static void wd1770_fdc_indexpulse(void *p)
