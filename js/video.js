@@ -55,34 +55,50 @@ function video_renderer_init(main_window) {
         }
     `;
 
-    const vs = compileShader(gl.VERTEX_SHADER, VS_SOURCE);
-    const fs = compileShader(gl.FRAGMENT_SHADER, FS_SOURCE);
-    let program = createProgram(vs, fs);
-    gl.useProgram(program);
+    // Everything the context holds, made again if it's lost and restored
+    function createResources() {
+        const vs = compileShader(gl.VERTEX_SHADER, VS_SOURCE);
+        const fs = compileShader(gl.FRAGMENT_SHADER, FS_SOURCE);
+        let program = createProgram(vs, fs);
+        gl.useProgram(program);
 
-    const quad = new Float32Array([
-        -1, -1,  1, -1, -1,  1,     // |\
-        -1,  1,  1, -1,  1,  1,     //    \|
-    ]);
-    const vao = gl.createVertexArray();
-    gl.bindVertexArray(vao);
-    const buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
-    const posLoc = gl.getAttribLocation(program, 'a_position');
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+        const quad = new Float32Array([
+            -1, -1,  1, -1, -1,  1,     // |\
+            -1,  1,  1, -1,  1,  1,     //    \|
+        ]);
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+        const posLoc = gl.getAttribLocation(program, 'a_position');
+        gl.enableVertexAttribArray(posLoc);
+        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-    let texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    
+        let texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        return texture;
+    }
+
+    // GL calls do nothing while the context is lost, so frames are just dropped
+    Module['canvas'].addEventListener('webglcontextlost', e => {
+        console.warn('WebGL context lost');
+        e.preventDefault();     // otherwise it's never restored
+    });
+    Module['canvas'].addEventListener('webglcontextrestored', () => {
+        console.log('WebGL context restored');
+        Module.renderer.texture = createResources();
+        // The next update_texture sets up the new texture and the viewport
+        Module.renderer.textureWidth = null;
+    });
+
     Module.renderer = {
         gl: gl,
-        texture: texture,
+        texture: createResources(),
         textureWidth: null,
         textureHeight: null,
         dblScan: false,
@@ -148,7 +164,12 @@ function render(src_x, src_y, src_w, src_h, dblScan) {
       once, before the drawing buffer is presented and cleared. Each callback
       gets the promise of a PNG Blob.*/
     if (Module.screenshotRequests && Module.screenshotRequests.length) {
-        let png = Module.canvas.convertToBlob({ type: 'image/png' });
+        let png;
+        try {
+            png = Module.canvas.convertToBlob({ type: 'image/png' });
+        } catch (e) {
+            png = Promise.reject(e);    // e.g. the context is lost
+        }
         for (let callback of Module.screenshotRequests.splice(0))
             callback(png);
     }
