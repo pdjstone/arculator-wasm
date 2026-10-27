@@ -25,9 +25,9 @@
   are Int32 so that JS can use Atomics on them. The counters are free running
   (modulo 2^32) - the ring index is the counter masked by the ring size.
 
-  Counters are published from the emulator with Atomics.store via
-  browser_publish_audio() (js/audio.js), which orders the data writes before
-  the counter update.
+  Counters are published from the emulator with sequentially consistent
+  atomic stores (publish() in sound_emscripten.c), which order the data writes
+  before the counter update, as Atomics.store does.
 
   The layout is mirrored in frontend/audio-ring.js - keep the two in sync.*/
 #ifndef SOUND_RING_H

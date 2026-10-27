@@ -13,8 +13,6 @@
 
 /*Implemented in js/audio.js*/
 extern void browser_init_audio(int ctrl_ptr, int reset_ptr, int event_ptr, int record_ptr, int dd_ptr);
-extern void browser_publish_audio(int ctrl_ptr, int index, int value);
-extern void browser_publish_audio3(int ctrl_ptr, int index1, int value1, int index2, int value2, int index3, int value3);
 
 #define DEFAULT_TARGET_FILL_FRAMES 4800 /*100ms, used until the worklet reports its own*/
 #define PACE_MAX_ADJUST_MS 4
@@ -24,6 +22,14 @@ extern void browser_publish_audio3(int ctrl_ptr, int index1, int value1, int ind
 static sound_ring_t sound_ring;
 static volatile int32_t *const ctrl = sound_ring.ctrl;
 #define CTRL_PTR ((int)(intptr_t)sound_ring.ctrl)
+
+/*Publish a counter in the control block. This is the same instruction as the
+  worklet's Atomics.store/load (it needs -matomics), so the ring data written
+  before it is visible to the worklet by the time the new value is*/
+static void publish(int index, int32_t value)
+{
+	__atomic_store_n(&ctrl[index], value, __ATOMIC_SEQ_CST);
+}
 
 /*Our copies of the counters we own*/
 static uint32_t rec_write_count, event_write_count, dd_write_count; /*dd_write_count is in blocks*/
@@ -107,7 +113,7 @@ static void event_set_coefs(sound_event_t *e, const double *a_coef, const double
 static void event_publish(void)
 {
 	event_write_count++;
-	browser_publish_audio(CTRL_PTR, SOUND_CTRL_EVT_WRITE, (int32_t)event_write_count);
+	publish(SOUND_CTRL_EVT_WRITE, (int32_t)event_write_count);
 }
 
 void sound_dev_reset(int samp_inc, int clock_hz, const double *a_coef, const double *b_coef)
@@ -132,8 +138,8 @@ void sound_dev_reset(int samp_inc, int clock_hz, const double *a_coef, const dou
 	/*Output frames are counted from the reset, so the watermark starts again
 	  from zero. The worklet reads the watermark before RESET_SEQ, so by the
 	  time it can see the reset it can see this*/
-	browser_publish_audio(CTRL_PTR, SOUND_CTRL_FRAME_WM, 0);
-	browser_publish_audio(CTRL_PTR, SOUND_CTRL_RESET_SEQ, (int32_t)resets_sent);
+	publish(SOUND_CTRL_FRAME_WM, 0);
+	publish(SOUND_CTRL_RESET_SEQ, (int32_t)resets_sent);
 }
 
 int sound_dev_clock(uint32_t out_frame, int samp_inc, int clock_hz, const double *a_coef, const double *b_coef)
@@ -204,8 +210,6 @@ static uint32_t records_in_use(void)
   together, and the frame positions of later events would be wrong.*/
 int sound_dev_record(int period, const int16_t *samples)
 {
-	static int last_gain_db, last_dd_gain_db;
-	static int gains_valid;
 	sound_record_t *rec;
 
 	if (records_in_use() >= SOUND_REC_COUNT)
@@ -214,19 +218,6 @@ int sound_dev_record(int period, const int16_t *samples)
 		ctrl[SOUND_CTRL_RECORDS_DROPPED]++;
 		return 0;
 	}
-
-	/*The worklet applies the gains, so they're only published when they change*/
-	if (!gains_valid || sound_gain != last_gain_db)
-	{
-		last_gain_db = sound_gain;
-		ctrl[SOUND_CTRL_GAIN] = gain_to_q8(sound_gain);
-	}
-	if (!gains_valid || disc_noise_gain != last_dd_gain_db)
-	{
-		last_dd_gain_db = disc_noise_gain;
-		ctrl[SOUND_CTRL_DD_GAIN] = (disc_noise_gain >= DISC_NOISE_DISABLED) ? 0 : gain_to_q8(disc_noise_gain);
-	}
-	gains_valid = 1;
 
 	rec = &sound_ring.records[rec_write_count & (SOUND_REC_COUNT - 1)];
 	rec->period = period;
@@ -249,10 +240,26 @@ uint32_t sound_dev_ticks_written(void)
 
 void sound_dev_flush(uint32_t frame_wm)
 {
+	static int last_gain_db, last_dd_gain_db;
+	static int gains_valid;
+
+	/*The worklet applies the gains, so they're only published when they change*/
+	if (!gains_valid || sound_gain != last_gain_db)
+	{
+		last_gain_db = sound_gain;
+		ctrl[SOUND_CTRL_GAIN] = gain_to_q8(sound_gain);
+	}
+	if (!gains_valid || disc_noise_gain != last_dd_gain_db)
+	{
+		last_dd_gain_db = disc_noise_gain;
+		ctrl[SOUND_CTRL_DD_GAIN] = (disc_noise_gain >= DISC_NOISE_DISABLED) ? 0 : gain_to_q8(disc_noise_gain);
+	}
+	gains_valid = 1;
+
 	/*The worklet reads these in the opposite order to this*/
-	browser_publish_audio3(CTRL_PTR, SOUND_CTRL_REC_WRITE, (int32_t)rec_write_count,
-	                       SOUND_CTRL_TICKS_WRITE, (int32_t)ticks_written,
-	                       SOUND_CTRL_FRAME_WM, (int32_t)frame_wm);
+	publish(SOUND_CTRL_REC_WRITE, (int32_t)rec_write_count);
+	publish(SOUND_CTRL_TICKS_WRITE, (int32_t)ticks_written);
+	publish(SOUND_CTRL_FRAME_WM, (int32_t)frame_wm);
 }
 
 /*Called with 100ms of mono 44.1kHz disc noise, at the start of the 100ms it
@@ -274,7 +281,7 @@ void sound_givebufferdd(int16_t *buf)
 	memcpy(block->samples, buf, sizeof(block->samples));
 
 	dd_write_count++;
-	browser_publish_audio(CTRL_PTR, SOUND_CTRL_DD_WRITE, (int32_t)dd_write_count);
+	publish(SOUND_CTRL_DD_WRITE, (int32_t)dd_write_count);
 }
 
 /*Called by arcloop() after each arc_run(), to keep counters of how well the

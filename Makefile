@@ -7,7 +7,8 @@ CC             := gcc
 CFLAGS         := -D_REENTRANT -Wall -Werror -DBUILD_TAG="${BUILD_TAG}"
 # podules-unix.c looks for external podules as <name>/<name>$(SO_EXT)
 CFLAGS         += -DSO_EXT='".so"'
-CFLAGS_WASM    := -sUSE_ZLIB=1
+# -matomics: the audio ring counters are published with atomic stores (sound_emscripten.c)
+CFLAGS_WASM    := -sUSE_ZLIB=1 -matomics -mbulk-memory
 LINKFLAGS      := -lz -lm -ldl
 EM_MODULE_JS_API  := logReadFiles,locateFile,monitorRunDependencies,noInitialRun,onRuntimeInitialized,preRun,postRun,print,printErr,setStatus,canvas
 EM_RUNTIME_API := ccall,FS,callMain,HEAPU8,HEAPU32
