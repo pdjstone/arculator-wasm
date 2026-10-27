@@ -4,7 +4,7 @@
   (src/jscli).
   Each module serves one channel:
     0  JSCLI      runs commands from a transient callback, output from WrchV.
-                  Also writes VDU bytes and puts keys in the keyboard buffer
+                  Also puts keys in the keyboard buffer
     1  JSCLIWimp  runs commands in a TaskWindow (desktop only). Also runs
                   sessions: TaskWindows that stay open and are sent input
 
@@ -72,11 +72,10 @@ enum {
 
 enum {
 	JSCLI_KIND_CLI = 0,
-	JSCLI_KIND_VDU = 1,
-	JSCLI_KIND_KEYS = 2,
-	JSCLI_KIND_OPEN = 3,    /*start a session, running the command (or a * prompt)*/
-	JSCLI_KIND_INPUT = 4,   /*send bytes to a session's TaskWindow*/
-	JSCLI_KIND_CLOSE = 5    /*kill a session's (or command's) TaskWindow*/
+	JSCLI_KIND_KEYS = 1,
+	JSCLI_KIND_OPEN = 2,    /*start a session, running the command (or a * prompt)*/
+	JSCLI_KIND_INPUT = 3,   /*send bytes to a session's TaskWindow*/
+	JSCLI_KIND_CLOSE = 4    /*kill a session's (or command's) TaskWindow*/
 };
 
 typedef struct {
@@ -357,7 +356,7 @@ static int jscli_queue(int channel, int kind, int target, const uint8_t *data, i
 	}
 	if (len > max_len)
 		return -3;
-	if (kind == JSCLI_KIND_VDU || kind == JSCLI_KIND_KEYS ? channel != 0 :
+	if (kind == JSCLI_KIND_KEYS ? channel != 0 :
 	    kind != JSCLI_KIND_CLI && channel != 1)
 		return -4;
 	/*Input can go to a session that hasn't started yet, but there's nothing to
@@ -388,7 +387,7 @@ int EMSCRIPTEN_KEEPALIVE arc_cli_queue(int channel, const char *cmd)
 }
 
 /*Queue a request of another kind for `channel`:
-    VDU bytes or keys (JSCLI): at most JSCLI_MAX_DATA bytes
+    keys (JSCLI): at most JSCLI_MAX_DATA bytes
     open a session (JSCLIWimp): the command to run in it, or nothing for a
       * prompt
     input for session `target` (JSCLIWimp): at most JSCLI_MAX_INPUT bytes
@@ -397,7 +396,7 @@ int EMSCRIPTEN_KEEPALIVE arc_cli_queue(int channel, const char *cmd)
   -5 if `target` isn't running (or, for input, queued)*/
 int EMSCRIPTEN_KEEPALIVE arc_cli_queue_data(int channel, int kind, int target, const uint8_t *data, int len)
 {
-	if (kind <= JSCLI_KIND_CLI || kind > JSCLI_KIND_CLOSE)
+	if (kind < JSCLI_KIND_KEYS || kind > JSCLI_KIND_CLOSE)
 		return -4;
 	return jscli_queue(channel, kind, target, data, len);
 }

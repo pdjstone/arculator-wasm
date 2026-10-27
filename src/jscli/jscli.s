@@ -7,10 +7,9 @@
         @ prints (which then doesn't reach the screen), then reports the
         @ output and any error to the emulator.
         @
-        @ A request can instead be VDU bytes, written with OS_WriteN, or
-        @ keys, put in the keyboard buffer with OS_Byte 153 as if typed. When
-        @ the keyboard buffer is full, the rest of the keys wait for later
-        @ callbacks.
+        @ A request can instead be keys, put in the keyboard buffer with
+        @ OS_Byte 153 as if typed. When the keyboard buffer is full, the rest
+        @ of the keys wait for later callbacks.
         @
         @ The callback runs in whatever context RISC OS was about to return
         @ to, which in the desktop can be any task.
@@ -264,7 +263,7 @@ callback:
         mov     r1, #JSCLI_CHANNEL_CALLBACK
         add     r2, wp, #WS_CMD_BUF
         mov     r3, #CMD_BUF_SIZE
-        mov     r4, #(1 << JSCLI_KIND_CLI) | (1 << JSCLI_KIND_VDU) | (1 << JSCLI_KIND_KEYS)
+        mov     r4, #(1 << JSCLI_KIND_CLI) | (1 << JSCLI_KIND_KEYS)
         swi     XArcEm_JSCLI            @ r0 = id, r1 = kind, r3 = length
         teq     r0, #0
         beq     callback_exit
@@ -275,8 +274,6 @@ callback:
         mov     r0, #STATE_RUNNING
         str     r0, [wp, #WS_STATE]
 
-        teq     r1, #JSCLI_KIND_VDU
-        beq     write_vdu
         teq     r1, #JSCLI_KIND_KEYS
         beq     start_keys
 
@@ -298,14 +295,6 @@ callback:
         mov     r2, wp
         swi     XOS_Release
 
-        b       callback_done
-
-write_vdu:
-        add     r0, wp, #WS_CMD_BUF
-        mov     r1, r3
-        swi     XOS_WriteN
-        movvc   r4, #0
-        movvs   r4, r0
         b       callback_done
 
 start_keys:
