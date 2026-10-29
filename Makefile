@@ -39,7 +39,7 @@ OBJS := 82c711 82c711_fdc \
 	ide_riscdev ide_zidefs ide_zidefs_a3k ide_hccs_a3k \
 	input_emscripten ioc ioeb joystick keyboard \
 	lc main mem memc podules printer \
-	riscdev_hdfc romload sound_emscripten \
+	riscdev_hdfc romload sound_emscripten swihook \
 	st506 st506_akd52 timer vidc video_emscripten wd1770 \
 	joystick_emscripten hostfs-unix podules-unix \
 	emscripten_main emscripten-console hostfs_emscripten

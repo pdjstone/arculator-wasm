@@ -18,6 +18,7 @@
 #include "memc.h"
 #include "podules.h"
 #include "sound.h"
+#include "swihook.h"
 #include "timer.h"
 #include "vidc.h"
 
@@ -2566,6 +2567,8 @@ static void opSWI(uint32_t opcode)
 			setmousecursor(armregs[1]);
 		}
 	}
+
+	swihook_check(opcode & 0xdffff, armregs);
 
 	if ((opcode & 0xdffff) == ARCEM_SWI_HOSTFS)
 	{
