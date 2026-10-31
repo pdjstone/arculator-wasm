@@ -69,7 +69,7 @@ void clear(BITMAP *b)
 	memset(b->dat, 0, b->w * b->h * 4);
 }
 
-BITMAP *create_bitmap(int x, int y)
+static BITMAP *alloc_bitmap(int x, int y)
 {
 	BITMAP *b = (BITMAP *)malloc(sizeof(BITMAP) + (y * sizeof(uint8_t *)));
 	int c;
@@ -80,6 +80,12 @@ BITMAP *create_bitmap(int x, int y)
 	}
 	b->w = x;
 	b->h = y;
+	return b;
+}
+
+BITMAP *create_bitmap(int x, int y)
+{
+	BITMAP *b = alloc_bitmap(x, y);
 	clear(b);
 	return b;
 }
@@ -552,21 +558,35 @@ void writevidc(uint32_t v)
 //        printf("VIDC write %08X\n",v);
 }
 
+/*How many rows of the frame buffer have been drawn on since it was last cleared.
+  Only that is cleared, so the rest of it is never touched and takes up no RAM:
+  most modes use a small part of it*/
+static int drawn_rows;
+
+static void clear_drawn()
+{
+	memset(buffer->dat, 0, drawn_rows * buffer->w * 4);
+	drawn_rows = 0;
+}
+
 void clearbitmap()
 {
-	clear(buffer);
+	clear_drawn();
 }
 
 void initvid()
 {
 	/*Keep the bitmap across arc_close()/arc_init() (machine changes in the
 	  web build): the renderer holds a pointer into it*/
-	/*2048 lines, as interlaced modes draw each line at l*2 (+1 for odd
-	  fields) and vidc_poll() allows l up to 1023*/
+	/*Interlaced modes draw each line at l*2 (+1 for odd fields), and l can
+	  reach 1024: vidc.line is only checked against vidc.vtot after the line
+	  is drawn. A line can also be up to two rows wide, so it takes 2051 rows
+	  to hold whatever a program sets up. It isn't cleared here: every row
+	  is drawn before it's shown*/
 	if (!buffer)
-		buffer = create_bitmap(2048, 2048);
+		buffer = alloc_bitmap(2048, 2051);
 	else
-		clear(buffer);
+		clear_drawn();
 	vidc.line = 0;
 	vidc.clock = 24000;
 }
@@ -584,7 +604,7 @@ void redopalette()
 
 void setredrawall()
 {
-	clear(buffer);
+	clear_drawn();
 }
 
 void closevideo()
@@ -749,6 +769,13 @@ static void vidc_poll(void *__p)
 	if (l>=0 && vidc.line<=1023 && l<1536)
 	{
 		int htot = (vidc.htot+1)*2;
+		/*A line wider than a row runs on to the next two*/
+		int rows = (vidc.interlace_enable ? l*2 + 1 : l) + 3;
+
+		if (rows > buffer->h)
+			rows = buffer->h;
+		if (rows > drawn_rows)
+			drawn_rows = rows;
 
 		if (vidc.interlace_enable)
 			bp = (uint8_t *)buffer->line[l*2 + (vidc.oddeven ? 1 : 0)];
@@ -1335,7 +1362,7 @@ static void vidc_poll(void *__p)
 			if (vidc.clear_pending)
 			{
 				vidc.clear_pending = 0;
-				clear(buffer);
+				clear_drawn();
 			}
 		}
 
