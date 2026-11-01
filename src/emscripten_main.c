@@ -27,6 +27,10 @@
 
 static int fixed_fps = 0;
 
+/*The page can't be seen, so there's no point drawing anything. Like a
+  fast-forward this uses skip_video_render, and it's still set when one ends*/
+static int page_hidden = 0;
+
 /*Whether the user wants sound on. sound_enable() is also used to switch sound
   off during a fast-forward, which mustn't override this when it finishes.
   Starts off as the config file's sound_enable, which loadconfig() applies*/
@@ -54,7 +58,7 @@ void arcloop()
                         rpclog("finished fast forward - re-enabling sound and video\n");
                         fast_forward_to_time_ms = 0;
                         sound_enable(user_sound_enabled);
-                        skip_video_render = 0;
+                        skip_video_render = page_hidden;
                 }
                 run_ms = ticks_since_last < MAX_TICKS_PER_FRAME ? ticks_since_last : MAX_TICKS_PER_FRAME;
                 /*While the audio device is playing it is the master clock*/
@@ -151,6 +155,13 @@ void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
         skip_video_render = 1;
         fast_forward_to_time_ms = time_ms;
         rpclog("arc_fast_forward: %d\n", time_ms);
+}
+
+void EMSCRIPTEN_KEEPALIVE arc_set_page_hidden(int hidden)
+{
+        page_hidden = hidden;
+        if (fast_forward_to_time_ms == 0)
+                skip_video_render = hidden;
 }
 
 /*Dump stereo audio to a PCM WAV file in the Emscripten filesystem, starting

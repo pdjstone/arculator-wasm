@@ -157,6 +157,10 @@ struct
 
 	int clear_pending;
 
+	/*Don't draw this frame, see skip_video_render. It only changes between
+	  frames, so a frame is either drawn and presented in full or not at all*/
+	int skip_draw;
+
 	int clock;
 
 	int disp_len, disp_rate, disp_count;
@@ -755,6 +759,12 @@ static void vidc_poll(void *__p)
 	if (vidc.state != VIDC_BACK_PORCH)
 		return;
 
+	/*Nothing below here affects the emulated machine until the end of the
+	  frame: the program can't read the frame buffer, and the DMA timing is
+	  in arm.c*/
+	if (vidc.skip_draw)
+		goto frame_end;
+
 	if (palchange)
 	{
 		redolookup();
@@ -1216,6 +1226,7 @@ static void vidc_poll(void *__p)
 		vidc.data_callback(out_data, (vidc.htot+1)*2, (vidc.sync+1)*2, !(mode & 2), vidc.callback_p);
 	}
 
+frame_end:
 	if (vidc.line>=vidc.vtot)
 	{
 		LOG_VIDEO_FRAMES("Frame over!  vidc.line=%d, vidc.vtot=%d\n", vidc.line, vidc.vtot);
@@ -1233,7 +1244,11 @@ static void vidc_poll(void *__p)
 
 		if (vidc.output_enable)
 		{
-			if ((display_mode == DISPLAY_MODE_NO_BORDERS) || (monitor_type == MONITOR_MONO))
+			if (vidc.skip_draw)
+			{
+				/*Nothing to show*/
+			}
+			else if ((display_mode == DISPLAY_MODE_NO_BORDERS) || (monitor_type == MONITOR_MONO))
 			{
 				int hd_start = (vidc.hbstart > vidc.hdstart) ? vidc.hbstart : vidc.hdstart;
 				int hd_end = (vidc.hbend < vidc.hdend) ? vidc.hbend : vidc.hdend;
@@ -1365,6 +1380,9 @@ static void vidc_poll(void *__p)
 				clear_drawn();
 			}
 		}
+
+		/*Devices on data_callback get their picture from the frame buffer*/
+		vidc.skip_draw = skip_video_render && !vidc.data_callback;
 
 		vidc.line=0;
 		if (vidc.vsync_callback)
