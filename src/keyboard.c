@@ -11,6 +11,8 @@
 #include "vidc.h"
 #include "video.h"
 
+#define KERNEL_MOUSE_ADDR_RISCOS 0x5b4
+#define KERNEL_MOUSE_ADDR_ARTHUR 0x664
 
 static emu_timer_t keyboard_timer;
 static emu_timer_t keyboard_rx_timer;
@@ -31,6 +33,9 @@ int keydat[512];
 int ledcaps,lednum,ledscr;
 int mouseena=0,keyena=0;
 int keystat=0xFF;
+
+// address where OS stores mouse coords. addr+0 is X addr+4 is Y
+int kernel_mouse_addr;
 
 static uint8_t key_data[2];
 
@@ -367,6 +372,7 @@ void keyboard_init()
 	int c, d;
 
 	keyboard_type = machine_is_a500() ? KEYBOARD_A500 : KEYBOARD_STANDARD;
+	kernel_mouse_addr = os_is_arthur() == 1 ? KERNEL_MOUSE_ADDR_ARTHUR : KERNEL_MOUSE_ADDR_RISCOS;
 
 	keyboard_send_single(KEYBOARD_HRST);
 	keystat = KEYBOARD_RESET;
@@ -378,6 +384,9 @@ void keyboard_init()
 		keydat[c] = 0;
 	}
 	c = d = 0;
+	#ifdef __EMSCRIPTEN__
+	browser_init_keys(key, keytable);
+	#else
 	while (!d)
 	{
 		if (keyboard_type == KEYBOARD_STANDARD)
@@ -397,10 +406,7 @@ void keyboard_init()
 				d = 1;
 		}
 	}
-
-	#ifdef __EMSCRIPTEN__
-	browser_init_keys(key, keytable);
-	#endif
+    #endif
 	timer_add(&keyboard_timer, keyboard_poll, NULL, 1);
 	timer_add(&keyboard_rx_timer, key_do_rx_callback, NULL, 0);
 	timer_add(&keyboard_tx_timer, key_do_tx_callback, NULL, 0);
@@ -499,11 +505,11 @@ void doosmouse()
  
 	if (ypos<mt) ypos=mt;
 	if (ypos>mb) ypos=mb;
-	writememl(0x5B8,ypos);
+	writememl(kernel_mouse_addr + 4, ypos);
 
 	if (xpos>mr) xpos=mr;
 	if (xpos<ml) xpos=ml;
-	writememl(0x5B4,xpos);
+	writememl(kernel_mouse_addr, xpos);
 	
 	//rpclog("doosmouse x=%d, y=%d, my=%d, offsety=%d, mouseena=%d\n", xpos, ypos, my, offsety, mouseena);
 }

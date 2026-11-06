@@ -87,3 +87,4 @@ extern char _5th_column_fn[512];
 extern int support_rom_enabled;
 
 int machine_is_a500(void);
+int os_is_arthur(void);
