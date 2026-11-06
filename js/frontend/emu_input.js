@@ -143,6 +143,23 @@ const MOUSE_CAPTURE_AUTO = 1;  // Use heuristics to decide when to capture and r
 const MOUSE_CAPTURE_FORCE = 2; // Always capture the mouse. Do not send mouse movement unless it is captured. 
 const MOUSE_CAPTURE_NEVER = 3; // Never capture the mouse, but still use heuristics to decide when to send absolute or relative mouse input
 
+// Touch input (phones and tablets), see handleTouchEvent
+const TOUCH_TAP_SLOP = 10       // CSS px a finger can move and still be a tap
+const TOUCH_LONG_PRESS_MS = 500 // hold still this long for Menu
+// Button changes must last long enough for Arculator to see them: it reads the
+// state once per emulated frame (and polls the keyboard every 10 ms of emulated
+// time). The emulator runs in a worker, so a hold is counted in the page's
+// animation frames as well as milliseconds, as a sign the host isn't stalled.
+// That keeps taps reliable when the browser drops frames (slow phones,
+// throttled windows).
+const TOUCH_BUTTON_MIN_MS = 80      // shortest press
+const TOUCH_BUTTON_MIN_FRAMES = 3
+const TOUCH_BUTTON_GAP_MS = 50      // released time between two presses
+const TOUCH_BUTTON_GAP_FRAMES = 2
+const TOUCH_POSITION_FRAMES = 2     // frames for a pointer move to reach the guest before a press
+const TOUCH_MOUSE_IGNORE_MS = 1000 // ignore the browser's emulated mouse events after a touch
+const TOUCH_PAD_SPEED = 1.5     // relative mode: emulator pixels per canvas pixel moved
+
 /**
  * Input handling for Arculator WASM. 
  * This replaces the SDL-based input routines from upstream Arculator.
@@ -163,6 +180,13 @@ class EmulatorInput
         this.lastMouseDown = 0;
         this.cursorX = 0;
         this.cursorY = 0;
+
+        this.touches = new Map();   // active touch pointers: pointerId -> {x, y}
+        this.gesture = null;        // current touch gesture, see handleTouchEvent
+        this.lastTouchTime = -Infinity;
+        this.buttonQueue = [];      // [{buttons, ms, frames}] applied in order, see queueButtons
+        this.buttonTimer = null;
+        this.touchButtons = 0;
 
         this.initBrowserKeys();
         this.getCanvasMeasurements();
@@ -234,9 +258,6 @@ class EmulatorInput
 
     getCanvasMeasurements() {
         this.captureElement = document.getElementById(this.captureElementId);
-        let canvas = this.captureElement;
-        this.canvasPaddingX = (canvas.clientWidth - canvas.width)/2;
-        this.canvasPaddingY = (canvas.clientHeight - canvas.height)/2;
         this.CANVAS_SNAP_BORDER = 50;
     }
 
@@ -252,6 +273,212 @@ class EmulatorInput
         document.addEventListener('blur', (evt) => obj.handleFocusLost(evt));
         this.captureElement.addEventListener('pointerrawupdate', (evt) => obj.handleMouseMoveEvent(evt));
         this.captureElement.addEventListener('mouseleave', (evt) => obj.handleMouseLeaveEvent(evt));
+
+        // Touch: pointer events, so the browser's emulated mouse events (which
+        // send mousedown and mouseup together, too quickly for Arculator to see
+        // a click) are not needed. touch-action stops the page scrolling or
+        // zooming while a finger is on the emulator.
+        this.captureElement.style.touchAction = 'none';
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+            this.captureElement.addEventListener(type, (evt) => obj.handleTouchEvent(evt), {passive: false});
+        this.captureElement.addEventListener('contextmenu', (evt) => {
+            if (obj.isTouchRecent()) evt.preventDefault();
+        });
+    }
+
+    /**
+     * Position of a mouse or pointer event in canvas pixels, the units
+     * sendAbsMouse expects. Works whatever the canvas's CSS size and padding
+     * (on narrow screens the stylesheet stretches it to 100% width with no
+     * padding), and clamps to the canvas so movement in the padding snaps to
+     * the edge of the screen.
+     */
+    canvasCoords(evt) {
+        let canvas = this.captureElement;
+        let rect = canvas.getBoundingClientRect();
+        let style = getComputedStyle(canvas);
+        let padL = parseFloat(style.paddingLeft) || 0;
+        let padT = parseFloat(style.paddingTop) || 0;
+        let w = rect.width - padL - (parseFloat(style.paddingRight) || 0);
+        let h = rect.height - padT - (parseFloat(style.paddingBottom) || 0);
+        if (w <= 0 || h <= 0)
+            return [0, 0];
+        let x = (evt.clientX - rect.left - padL) * canvas.width / w;
+        let y = (evt.clientY - rect.top - padT) * canvas.height / h;
+        x = Math.round(Math.min(Math.max(x, 0), canvas.width));
+        y = Math.round(Math.min(Math.max(y, 0), canvas.height));
+        return [x, y];
+    }
+
+    isTouchRecent() {
+        return performance.now() - this.lastTouchTime < TOUCH_MOUSE_IGNORE_MS;
+    }
+
+    // True when the guest wants relative mouse movement (games), so touch acts as a touchpad
+    touchIsRelative() {
+        return (this.mouseCaptureNeeded && this.mouseCaptureMode != MOUSE_CAPTURE_NEVER) ||
+               this.mouseCaptureMode == MOUSE_CAPTURE_FORCE;
+    }
+
+    setButtons(buttons) {
+        if (this.buttonsPtr)
+            Atomics.store(this.HEAP32, this.buttonsPtr, buttons);
+        Atomics.store(this.HEAP32, this.arcKeyStatePtr + this.mouseLeftKeyId, (buttons & 1) ? 1 : 0);
+        Atomics.store(this.HEAP32, this.arcKeyStatePtr + this.mouseMiddleKeyId, (buttons & 4) ? 1 : 0);
+        Atomics.store(this.HEAP32, this.arcKeyStatePtr + this.mouseRightKeyId, (buttons & 2) ? 1 : 0);
+    }
+
+    /**
+     * Touch button changes go through a queue so each press and release lasts
+     * long enough for Arculator to see it (see TOUCH_BUTTON_MIN_MS), and a press
+     * comes after the pointer has moved under the finger.
+     * buttons == null is a pause.
+     */
+    queueButtons(buttons, ms, frames) {
+        this.buttonQueue.push({buttons, ms, frames});
+        if (!this.buttonTimer)
+            this.runButtonQueue();
+    }
+
+    runButtonQueue() {
+        let next = this.buttonQueue.shift();
+        if (!next) {
+            this.buttonTimer = null;
+            return;
+        }
+        if (next.buttons != null) {
+            this.touchButtons = next.buttons;
+            this.setButtons(next.buttons);
+        }
+        let start = performance.now();
+        let frames = 0;
+        let step = () => {
+            frames++;
+            if (frames >= next.frames && performance.now() - start >= next.ms)
+                this.runButtonQueue();
+            else
+                this.buttonTimer = requestAnimationFrame(step);
+        };
+        this.buttonTimer = requestAnimationFrame(step);
+    }
+
+    touchPress(buttons) {
+        // let a pointer move just sent reach the guest first
+        this.queueButtons(null, 0, TOUCH_POSITION_FRAMES);
+        this.queueButtons(buttons, TOUCH_BUTTON_MIN_MS, TOUCH_BUTTON_MIN_FRAMES);
+    }
+
+    touchRelease() {
+        this.queueButtons(0, TOUCH_BUTTON_GAP_MS, TOUCH_BUTTON_GAP_FRAMES);
+    }
+
+    touchClick(buttons) {
+        this.touchPress(buttons);
+        this.touchRelease();
+    }
+
+    touchMoveTo(evt) {
+        let [x, y] = this.canvasCoords(evt);
+        this.sendAbsMouse(x, y);
+    }
+
+    /**
+     * Touch gestures:
+     *  - tap: Select click where the finger is
+     *  - drag: Select drag (absolute mode), or move the pointer like a touchpad
+     *    when the guest uses relative mouse movement (e.g. games)
+     *  - long press: Menu click
+     *  - two-finger tap: Adjust click
+     * In absolute mode the pointer jumps to the finger as soon as it touches.
+     * Mouse and pen pointers are left to the mouse event handlers.
+     */
+    handleTouchEvent(evt) {
+        if (evt.pointerType != 'touch')
+            return;
+        evt.preventDefault();
+        evt.stopPropagation();
+        this.lastTouchTime = performance.now();
+        let canvas = this.captureElement;
+        let relative = this.touchIsRelative();
+        let g = this.gesture;
+
+        if (evt.type == 'pointerdown') {
+            try { canvas.setPointerCapture(evt.pointerId); } catch (e) { }
+            canvas.focus();
+            this.touches.set(evt.pointerId, {x: evt.clientX, y: evt.clientY});
+            if (this.touches.size == 1) {
+                this.gesture = g = {kind: 'pending', id: evt.pointerId, x0: evt.clientX, y0: evt.clientY};
+                if (!relative)
+                    this.touchMoveTo(evt);
+                g.timer = setTimeout(() => {
+                    if (this.gesture === g && g.kind == 'pending') {
+                        g.kind = 'done';
+                        this.touchClick(4);           // long press: Menu
+                    }
+                }, TOUCH_LONG_PRESS_MS);
+            } else if (g && g.kind == 'pending') {
+                clearTimeout(g.timer);
+                g.kind = 'two';                       // second finger: Adjust on release
+            }
+            return;
+        }
+
+        let last = this.touches.get(evt.pointerId);
+        if (!last)
+            return;
+
+        if (evt.type == 'pointermove') {
+            let dx = evt.clientX - last.x;
+            let dy = evt.clientY - last.y;
+            this.touches.set(evt.pointerId, {x: evt.clientX, y: evt.clientY});
+            if (!g || g.id != evt.pointerId)
+                return;
+            if (g.kind == 'pending' &&
+                Math.hypot(evt.clientX - g.x0, evt.clientY - g.y0) > TOUCH_TAP_SLOP) {
+                clearTimeout(g.timer);
+                if (relative) {
+                    g.kind = 'pad';
+                } else {
+                    g.kind = 'drag';                  // press at the start, then follow the finger
+                    this.touchPress(1);
+                }
+            }
+            if (g.kind == 'drag') {
+                // Hold the pointer still until the press has been seen
+                if (this.buttonTimer && this.touchButtons != 1)
+                    return;
+                this.touchMoveTo(evt);
+            } else if (g.kind == 'pad') {
+                let rect = canvas.getBoundingClientRect();
+                let scale = TOUCH_PAD_SPEED * canvas.width / Math.max(rect.width, 1);
+                Atomics.add(this.HEAP32, this.mxPtr, Math.round(dx * scale));
+                Atomics.add(this.HEAP32, this.myPtr, Math.round(dy * scale));
+                Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_RELATIVE);
+            }
+            return;
+        }
+
+        // pointerup / pointercancel
+        this.touches.delete(evt.pointerId);
+        if (!g)
+            return;
+        let cancelled = evt.type == 'pointercancel';
+        if (evt.pointerId == g.id || g.kind == 'two') {
+            clearTimeout(g.timer);
+            if (g.kind == 'pending' && !cancelled) {
+                this.touchClick(1);                   // tap: Select
+                g.kind = 'done';
+            } else if (g.kind == 'drag') {
+                this.touchRelease();
+                g.kind = 'done';
+            } else if (g.kind == 'two' && this.touches.size == 0) {
+                if (!cancelled)
+                    this.touchClick(2);               // two-finger tap: Adjust
+                g.kind = 'done';
+            }
+        }
+        if (this.touches.size == 0)
+            this.gesture = null;
     }
 
     handleKeyDownEvent(evt) {
@@ -270,6 +497,8 @@ class EmulatorInput
     }
 
     handleMouseButtonEvent(evt) {
+        if (this.isTouchRecent())
+            return;
         let buttons = evt.buttons;
 
         // Support devices with no easy way to middle click
@@ -342,6 +571,9 @@ class EmulatorInput
     }
 
     handleMouseMoveEvent(evt) {
+        // pointerrawupdate fires for touch too, which handleTouchEvent deals with
+        if (evt.pointerType == 'touch' || this.isTouchRecent())
+            return;
         if (document.pointerLockElement || 
             (this.mouseCaptureNeeded && 
                 (this.mouseCaptureMode == MOUSE_CAPTURE_AUTO || 
@@ -352,17 +584,11 @@ class EmulatorInput
             Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_RELATIVE);
    
         } else if (!this.mouseCaptureNeeded && this.mouseCaptureMode != MOUSE_CAPTURE_FORCE) {
-            let canvas = this.captureElement;
-            // The canvas element has padding to allow the pointer 
+            // The canvas element has padding to allow the pointer
             // to be easily moved to/along the edge of the screen.
-            // Mouse movement within the padding will still be sent 
-            // to the emulator, but snapped to the edge
-            let x = evt.offsetX - this.canvasPaddingX;
-            let y = evt.offsetY - this.canvasPaddingY;
-            if (x < 0) x = 0;
-            if (y < 0) y = 0;
-            if (x > canvas.width) x = canvas.width;
-            if (y > canvas.height) y = canvas.height;
+            // Mouse movement within the padding will still be sent
+            // to the emulator, but snapped to the edge (canvasCoords clamps)
+            let [x, y] = this.canvasCoords(evt);
             this.sendAbsMouse(x, y);
         }
         evt.stopPropagation();
