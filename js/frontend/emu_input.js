@@ -259,6 +259,37 @@ class EmulatorInput
     getCanvasMeasurements() {
         this.captureElement = document.getElementById(this.captureElementId);
         this.CANVAS_SNAP_BORDER = 50;
+        this.measureCanvas();
+        // The canvas changes size with the window, the narrow-screen stylesheet,
+        // fullscreen and the display mode. canvasCoords also re-measures if
+        // the display mode changes without the element changing size
+        // (fullscreen, where it fills the screen whatever the mode)
+        new ResizeObserver(() => this.measureCanvas()).observe(this.captureElement);
+    }
+
+    /**
+     * Find where the picture is in the canvas element, for canvasCoords. It's
+     * the content box, inset by the padding, unless object-fit: contain
+     * (fullscreen) letterboxes it to keep the aspect ratio. The result is
+     * relative to the padding edge, as offsetX/offsetY are.
+     */
+    measureCanvas() {
+        let canvas = this.captureElement;
+        let style = getComputedStyle(canvas);
+        let padL = parseFloat(style.paddingLeft) || 0;
+        let padT = parseFloat(style.paddingTop) || 0;
+        let w = canvas.clientWidth - padL - (parseFloat(style.paddingRight) || 0);
+        let h = canvas.clientHeight - padT - (parseFloat(style.paddingBottom) || 0);
+        let left = padL, top = padT;
+        if (style.objectFit == 'contain' && canvas.width > 0 && canvas.height > 0) {
+            let scale = Math.min(w / canvas.width, h / canvas.height);
+            let pw = canvas.width * scale, ph = canvas.height * scale;
+            left += (w - pw) / 2;   // object-position is the default, centred
+            top += (h - ph) / 2;
+            w = pw;
+            h = ph;
+        }
+        this.picture = {left, top, w, h, width: canvas.width, height: canvas.height};
     }
 
     installEventHandlers() {
@@ -290,21 +321,22 @@ class EmulatorInput
      * Position of a mouse or pointer event in canvas pixels, the units
      * sendAbsMouse expects. Works whatever the canvas's CSS size and padding
      * (on narrow screens the stylesheet stretches it to 100% width with no
-     * padding), and clamps to the canvas so movement in the padding snaps to
-     * the edge of the screen.
+     * padding) and in fullscreen's letterboxing, and clamps to the canvas so
+     * movement in the padding or the borders snaps to the edge of the screen.
+     * This is called for every pointer move, so the layout is measured only
+     * when it changes (measureCanvas).
      */
     canvasCoords(evt) {
         let canvas = this.captureElement;
-        let rect = canvas.getBoundingClientRect();
-        let style = getComputedStyle(canvas);
-        let padL = parseFloat(style.paddingLeft) || 0;
-        let padT = parseFloat(style.paddingTop) || 0;
-        let w = rect.width - padL - (parseFloat(style.paddingRight) || 0);
-        let h = rect.height - padT - (parseFloat(style.paddingBottom) || 0);
-        if (w <= 0 || h <= 0)
+        let p = this.picture;
+        if (p.width != canvas.width || p.height != canvas.height) {
+            this.measureCanvas();
+            p = this.picture;
+        }
+        if (p.w <= 0 || p.h <= 0)
             return [0, 0];
-        let x = (evt.clientX - rect.left - padL) * canvas.width / w;
-        let y = (evt.clientY - rect.top - padT) * canvas.height / h;
+        let x = (evt.offsetX - p.left) * canvas.width / p.w;
+        let y = (evt.offsetY - p.top) * canvas.height / p.h;
         x = Math.round(Math.min(Math.max(x, 0), canvas.width));
         y = Math.round(Math.min(Math.max(y, 0), canvas.height));
         return [x, y];
@@ -449,8 +481,7 @@ class EmulatorInput
                     return;
                 this.touchMoveTo(evt);
             } else if (g.kind == 'pad') {
-                let rect = canvas.getBoundingClientRect();
-                let scale = TOUCH_PAD_SPEED * canvas.width / Math.max(rect.width, 1);
+                let scale = TOUCH_PAD_SPEED * canvas.width / Math.max(this.picture.w, 1);
                 Atomics.add(this.HEAP32, this.mxPtr, Math.round(dx * scale));
                 Atomics.add(this.HEAP32, this.myPtr, Math.round(dy * scale));
                 Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_RELATIVE);
