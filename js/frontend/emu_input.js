@@ -632,7 +632,7 @@ class EmulatorInput
      * was close to the edge of the screen we snap to the screen edge
      */
     handleMouseLeaveEvent(evt) {
-        if (this.mouseCaptureNeeded)
+        if (this.mouseCaptureNeeded || this.isTouchRecent())
             return;
 
         let x = this.cursorX;
