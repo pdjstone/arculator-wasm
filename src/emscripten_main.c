@@ -40,6 +40,25 @@ static int user_sound_enabled = 1;
 
 static volatile int pause_main_thread = 0;
 
+/*Emulated time when the current fast-forward started, for its progress*/
+static long long fast_forward_start_ms = 0;
+
+/*Tells the worker how far a fast-forward has got (fast-forward.js), when it
+  starts, as it runs and when it ends (active=0)*/
+EM_JS(void, fast_forward_js_progress, (double start_ms, double now_ms, double target_ms, int active), {
+        if (self.arcFastForwardProgress) self.arcFastForwardProgress(start_ms, now_ms, target_ms, !!active);
+});
+
+static void end_fast_forward()
+{
+        long long target_ms = fast_forward_to_time_ms;
+
+        fast_forward_to_time_ms = 0;
+        sound_enable(user_sound_enabled);
+        skip_video_render = page_hidden;
+        fast_forward_js_progress(fast_forward_start_ms, total_emulation_millis, target_ms, 0);
+}
+
 
 void arcloop()
 {
@@ -52,13 +71,11 @@ void arcloop()
         if (fast_forward_to_time_ms != 0 && total_emulation_millis < fast_forward_to_time_ms) {
                 run_ms = MAX_TICKS_PER_FRAME;
                 sound_enable(0);
-                //rpclog("fast forward to %d %d\n", fast_forward_to_time_ms, total_emulation_millis);
+                fast_forward_js_progress(fast_forward_start_ms, total_emulation_millis, fast_forward_to_time_ms, 1);
         } else {
                 if (fast_forward_to_time_ms != 0) {
                         rpclog("finished fast forward - re-enabling sound and video\n");
-                        fast_forward_to_time_ms = 0;
-                        sound_enable(user_sound_enabled);
-                        skip_video_render = page_hidden;
+                        end_fast_forward();
                 }
                 run_ms = ticks_since_last < MAX_TICKS_PER_FRAME ? ticks_since_last : MAX_TICKS_PER_FRAME;
                 /*While the audio device is playing it is the master clock*/
@@ -113,13 +130,19 @@ void EMSCRIPTEN_KEEPALIVE arc_resume_main_thread()
 }
 
 
+/*A reset restarts emulated time, so it ends any fast-forward. Callers that
+  want one after the reset start it again*/
 void EMSCRIPTEN_KEEPALIVE arc_do_reset()
 {
+        if (fast_forward_to_time_ms != 0)
+                end_fast_forward();
         arc_reset();
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_load_config_and_reset(char *config_name)
 {
+        if (fast_forward_to_time_ms != 0)
+                end_fast_forward();
         arc_close();
         snprintf(machine_config_file, 256, "configs/%s.cfg", config_name);
         strncpy(machine_config_name, config_name, 255);
@@ -149,12 +172,18 @@ void EMSCRIPTEN_KEEPALIVE arc_disc_eject(int drive)
 
 }
 
+/*Run flat out, without sound or video, until time_ms of emulated time.
+  Calling it during a fast-forward moves the end point, and the progress
+  still counts from where it started*/
 void EMSCRIPTEN_KEEPALIVE arc_fast_forward(int time_ms)
 {
+        if (fast_forward_to_time_ms == 0)
+                fast_forward_start_ms = total_emulation_millis;
         soundena = 0;
         skip_video_render = 1;
         fast_forward_to_time_ms = time_ms;
         rpclog("arc_fast_forward: %d\n", time_ms);
+        fast_forward_js_progress(fast_forward_start_ms, total_emulation_millis, time_ms, 1);
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_set_page_hidden(int hidden)
