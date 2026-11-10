@@ -53,6 +53,7 @@ static struct
 
 	uint8_t ram[256];
 	uint8_t rtc_ram[8];
+	int rtc_year_offset; /*chip's year - systemtime.year*/
 
 	emu_timer_t timer;
 } cmos;
@@ -186,7 +187,7 @@ static void cmos_get_time()
 		cmos.ram[4] = d | (c << 4);
 		d = systemtime.day % 10;
 		c = systemtime.day / 10;
-		cmos.ram[5] = d | (c << 4);
+		cmos.ram[5] = d | (c << 4) | (((systemtime.year + cmos.rtc_year_offset) & 3) << 6);
 		d = systemtime.mon % 10;
 		c = systemtime.mon / 10;
 		cmos.ram[6] = d | (c << 4);
@@ -259,6 +260,13 @@ void cmos_init()
 	systemtime.mon = cur_time_tm->tm_mon + 1;
 	systemtime.year = cur_time_tm->tm_year + 1900;
 #endif
+
+	/*The PCF8583 keeps only the year mod 4, in the top bits of the day
+	  register. RISC OS keeps the year in CMOS RAM (locations 128-129,
+	  physical 0xc0-0xc1), and at startup moves it on until it agrees with the
+	  chip's. The chip's year is saved with the CMOS RAM, so start it from the
+	  saved year: the date is then the host's day and time in that year.*/
+	cmos.rtc_year_offset = cmos.ram[0xc0] + cmos.ram[0xc1] * 100 - systemtime.year;
 
 	timer_add(&cmos.timer, cmos_tick, NULL, 1);
 }
