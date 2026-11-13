@@ -64,17 +64,19 @@ build/native/%.o: src/%.c
 	${CC} -c ${CFLAGS} $< -o $@
 
 ######################################################################
+include emscripten.mk
+
 wasm:	$(addprefix build/wasm/arculator.,js wasm)
 
 build/wasm/arculator.wasm: build/wasm/arculator.js
-build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js js/video.js js/audio.js
+build/wasm/arculator.js: ${OBJS_WASM} js/browser_keys.js js/video.js js/audio.js | check-emcc
 	emcc ${LINKFLAGS} ${LINKFLAGS_WASM} ${OBJS_WASM} --embed-file ddnoise -o $@
 
 # build/wasm/arculator.data.js: build/wasm/arculator.data
 # build/wasm/arculator.data: ${DATA}
 # 	${EMSDK}/upstream/emscripten/tools/file_packager $@ --js-output=$@.js --preload $^
 
-build/wasm/%.o: src/%.c
+build/wasm/%.o: src/%.c | check-emcc
 	@mkdir -p $(@D)
 	emcc -c ${CFLAGS} ${CFLAGS_WASM} $< -o $@
 
