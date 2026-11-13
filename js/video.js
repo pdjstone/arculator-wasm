@@ -125,7 +125,7 @@ function update_texture(bufferPointer, x, y, w, h) {
     // The view also depends on where the frame bitmap is, so rebuild it if that moves
     if (w !== Module.renderer.textureWidth || h !== Module.renderer.textureHeight ||
         bufferPointer !== Module.renderer.bufferPointer || x !== Module.renderer.xOffset || y !== Module.renderer.yOffset) {
-        console.log('resize texture', x, y, w, h);
+        //console.log('resize texture', x, y, w, h);
         Module.renderer.textureWidth = w;
         Module.renderer.textureHeight = h;        
         Module.renderer.bufferPointer = bufferPointer;
