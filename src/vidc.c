@@ -1445,6 +1445,12 @@ int vidc_get_hs()
 
 void vidc_reset()
 {
+	/*Start at the top of a frame, as at power on. RISC OS times the monitor ID
+	  against the display, and would detect different monitors otherwise*/
+	vidc.state = VIDC_HSYNC;
+	vidc.line = 0;
+	vidc.in_display = 0;
+	vidc.displayon = vidc.borderon = vidc_displayon = 0;
 	timer_add(&vidc.timer, vidc_poll, NULL, 1);
 	vidc_setclock(0);
 	sound_set_period(255);

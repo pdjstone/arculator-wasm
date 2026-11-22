@@ -261,6 +261,12 @@ void cmos_init()
 	systemtime.year = cur_time_tm->tm_year + 1900;
 #endif
 
+	/*A reset can come part way through a transfer, so start with an idle bus.
+	  Otherwise RISC OS can misread its settings as it starts up*/
+	memset(&i2c, 0, sizeof(i2c));
+	i2c_clock = i2c_data = 1;
+	cmos_stop();
+
 	/*The PCF8583 keeps only the year mod 4, in the top bits of the day
 	  register. RISC OS keeps the year in CMOS RAM (locations 128-129,
 	  physical 0xc0-0xc1), and at startup moves it on until it agrees with the
