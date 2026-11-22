@@ -162,6 +162,7 @@ int arc_init()
 	initarculfs();
 #endif
 	hostfs_init();
+	hostfs_reset(); /*arc_init() also restarts a running emulator on a change of machine*/
 	initmem(memsize);
 
 	if (loadrom())
@@ -235,6 +236,7 @@ int speed_mhz;
 
 void arc_reset()
 {
+	hostfs_reset();
 	arc_set_cpu(arm_cpu_type, memc_type);
 	timer_reset();
 	total_emulation_millis=0;
