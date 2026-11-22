@@ -7,6 +7,7 @@
 #include <emscripten/html5.h>
 #endif
 #include "arc.h"
+#include "cmos.h"
 #include "config.h"
 #include "disc.h"
 #include "ioc.h"
@@ -137,6 +138,20 @@ void EMSCRIPTEN_KEEPALIVE arc_do_reset()
         if (fast_forward_to_time_ms != 0)
                 end_fast_forward();
         arc_reset();
+}
+
+/*As arc_do_reset, but without IOC's power-on flag, so RISC OS takes it for
+  the reset button and boots several emulated seconds sooner. RAM is still
+  wiped, so nothing is left of what was running.
+
+  CMOS RAM is reloaded from its file, dropping any changes not yet saved, so
+  a caller that wants known settings can write the file first*/
+void EMSCRIPTEN_KEEPALIVE arc_quick_reset()
+{
+        cmos_changed = 0; /*or arc_reset() would save over the file*/
+        arc_do_reset();
+        ioc.irqa &= ~IOC_IRQA_POWER_ON;
+        ioc_updateirqs();
 }
 
 void EMSCRIPTEN_KEEPALIVE arc_load_config_and_reset(char *config_name)
