@@ -99,6 +99,10 @@ void c82c711_fdc_init(void)
 	if (fdctype == FDC_82C711)
 	{
 		FDC *fdc = &_fdc;
+
+		/*A reset clears all the registers. With the DOR left set, RISC OS
+		  can't reset the controller, and hangs waiting for it at startup*/
+		memset(fdc, 0, sizeof(FDC));
 		c82c711_fdc_reset(fdc);
 
 		rpclog("82c711 present\n");
