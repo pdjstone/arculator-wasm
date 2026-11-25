@@ -228,7 +228,11 @@ class EmulatorInput
         this.mouseModePtr = mouseModePtr >> 2;
     }
 
-    /** 
+    mouseReady() {
+        return this.mouseModePtr !== undefined;
+    }
+
+    /**
      * Triggered by notify_mouse_lock_required in browser_keys.js
      */
     setMouseCaptureNeeded(needed) {
@@ -481,6 +485,8 @@ class EmulatorInput
                     return;
                 this.touchMoveTo(evt);
             } else if (g.kind == 'pad') {
+                if (!this.mouseReady())
+                    return;
                 let scale = TOUCH_PAD_SPEED * canvas.width / Math.max(this.picture.w, 1);
                 Atomics.add(this.HEAP32, this.mxPtr, Math.round(dx * scale));
                 Atomics.add(this.HEAP32, this.myPtr, Math.round(dy * scale));
@@ -603,9 +609,9 @@ class EmulatorInput
 
     handleMouseMoveEvent(evt) {
         // pointerrawupdate fires for touch too, which handleTouchEvent deals with
-        if (evt.pointerType == 'touch' || this.isTouchRecent())
+        if (evt.pointerType == 'touch' || this.isTouchRecent() || !this.mouseReady())
             return;
-        if (document.pointerLockElement || 
+        if (document.pointerLockElement ||
             (this.mouseCaptureNeeded && 
                 (this.mouseCaptureMode == MOUSE_CAPTURE_AUTO || 
                  this.mouseCaptureMode == MOUSE_CAPTURE_NEVER) 
@@ -660,6 +666,8 @@ class EmulatorInput
     }
 
     sendAbsMouse(x, y) {
+        if (!this.mouseReady())
+            return;
         Atomics.store(this.HEAP32, this.mouseModePtr, MOUSE_MODE_ABSOLUTE);
         Atomics.store(this.HEAP32, this.mxPtr, x);
         // invert Y mouse coord
